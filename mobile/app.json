@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "App Blocker",
+    "slug": "appblocker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#050e18"
+    },
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#050e18"
+      }
+    }
+  }
+}
