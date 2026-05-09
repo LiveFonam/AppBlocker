@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+mobile/node_modules/
+
+# Expo
+mobile/.expo/
+mobile/dist/
+mobile/build/
+
+# EAS credentials (NEVER commit these)
+mobile/credentials.json
+*.p8
+*.p12
+*.mobileprovision
+*.keystore
+*.jks
+
+# Environment / secrets
+.env
+.env.local
+.env.development
+.env.production
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# iOS build artifacts
+mobile/ios/build/
+mobile/ios/Pods/
+*.xcworkspace
+*.xcuserdata
+DerivedData/
+
+# Android build artifacts
+mobile/android/build/
+mobile/android/.gradle/
+mobile/android/app/build/
+*.apk
+*.aab
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp

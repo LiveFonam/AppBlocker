@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "App Blocker",
-    "slug": "appblocker",
+    "name": "Nova Focus",
+    "slug": "nova-focus",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -9,12 +9,26 @@
       "backgroundColor": "#050e18"
     },
     "ios": {
-      "supportsTablet": false
+      "bundleIdentifier": "com.nova.novafocus",
+      "supportsTablet": false,
+      "entitlements": {
+        "com.apple.developer.family-controls": true,
+        "com.apple.security.application-groups": ["group.nova.appblocker"]
+      }
     },
     "android": {
+      "package": "com.nova.novafocus",
       "adaptiveIcon": {
         "backgroundColor": "#050e18"
-      }
-    }
+      },
+      "permissions": [
+        "android.permission.BIND_ACCESSIBILITY_SERVICE",
+        "android.permission.PACKAGE_USAGE_STATS",
+        "android.permission.QUERY_ALL_PACKAGES"
+      ]
+    },
+    "plugins": [
+      "./plugins/withAppBlocker"
+    ]
   }
 }
