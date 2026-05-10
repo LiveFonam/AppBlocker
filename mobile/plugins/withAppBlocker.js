@@ -26,7 +26,7 @@ function withIosModule(config) {
     const projName    = modConfig.modRequest.projectName;
     const projRoot    = modConfig.modRequest.platformProjectRoot;
     const sourceDir   = path.join(modConfig.modRequest.projectRoot, 'ios-native');
-    const destDir     = path.join(projRoot, projName);
+    const destDir     = projRoot;
 
     const files = ['AppBlockerModule.swift', 'AppBlockerModule.m'];
 

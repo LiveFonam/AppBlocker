@@ -2,36 +2,42 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Animated, Dimensions, Platform, TextInput, Vibration,
-  KeyboardAvoidingView, ScrollView,
+  KeyboardAvoidingView, ScrollView, ActivityIndicator, Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from './src/supabase';
+import { isUniversityDomain } from './src/universityDomains';
 
 let Notifications = null;
 try { Notifications = require('expo-notifications'); } catch (_) {}
 
 const { width: W, height: H } = Dimensions.get('window');
-const TOTAL = 10;
+const TOTAL = 11;
 
 const O = {
-  bg:     '#080808',
-  card:   '#141414',
-  border: 'rgba(255,255,255,0.10)',
-  blue:   '#0a84ff',
+  bg:     '#000000',
+  card:   '#111111',
+  border: '#1c1c1c',
+  white:  '#ffffff',
   red:    '#ff3b30',
   green:  '#30d158',
-  white:  '#ffffff',
-  muted:  'rgba(255,255,255,0.45)',
-  dim:    'rgba(255,255,255,0.12)',
+  muted:  'rgba(255,255,255,0.4)',
+  dim:    'rgba(255,255,255,0.15)',
 };
 
 const GUESS_VALUES = Array.from({ length: 32 }, (_, i) => +((i + 1) * 0.5).toFixed(1));
 
-const IOS_APPS = [
-  { id: 'youtube',   name: 'YouTube' },
-  { id: 'instagram', name: 'Instagram' },
-  { id: 'tiktok',    name: 'TikTok' },
-  { id: 'reddit',    name: 'Reddit' },
-  { id: 'twitter',   name: 'X / Twitter' },
+const IOS_APP_SCHEMES = [
+  { id: 'youtube',   name: 'YouTube',    scheme: 'youtube://' },
+  { id: 'instagram', name: 'Instagram',  scheme: 'instagram://' },
+  { id: 'tiktok',    name: 'TikTok',     scheme: 'snssdk1233://' },
+  { id: 'twitter',   name: 'X / Twitter',scheme: 'twitter://' },
+  { id: 'snapchat',  name: 'Snapchat',   scheme: 'snapchat://' },
+  { id: 'facebook',  name: 'Facebook',   scheme: 'fb://' },
+  { id: 'reddit',    name: 'Reddit',     scheme: 'reddit://' },
+  { id: 'discord',   name: 'Discord',    scheme: 'discord://' },
+  { id: 'netflix',   name: 'Netflix',    scheme: 'nflx://' },
+  { id: 'spotify',   name: 'Spotify',    scheme: 'spotify://' },
 ];
 
 const ANDROID_BAD_PKGS = [
@@ -64,8 +70,11 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   const [endMins,      setEndMins]      = useState(660);
   const [email,        setEmail]        = useState('');
   const [emailErr,     setEmailErr]     = useState('');
+  const [otpCode,      setOtpCode]      = useState('');
+  const [otpErr,       setOtpErr]       = useState('');
+  const [otpSending,   setOtpSending]   = useState(false);
   const [blockingMode, setBlockingMode] = useState('strict');
-  const [suggestedApps,setSuggestedApps]= useState(IOS_APPS);
+  const [suggestedApps,setSuggestedApps]= useState(IOS_APP_SCHEMES);
   const [pinSlide,     setPinSlide]     = useState(false);
   const [pin,          setPin]          = useState('');
 
@@ -77,16 +86,35 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   const daysBack    = Math.round((cut * 365) / 24);
 
   useEffect(() => {
-    if (step !== 8 || Platform.OS !== 'android' || !getUsageStats) return;
-    getUsageStats().then(stats => {
-      if (!stats || !stats.length) return;
-      const filtered = stats
-        .filter(s => ANDROID_BAD_PKGS.includes(s.packageName))
-        .sort((a, b) => b.totalMinutes - a.totalMinutes)
-        .slice(0, 5)
-        .map(s => ({ id: s.packageName, name: s.name, totalMinutes: s.totalMinutes }));
-      if (filtered.length > 0) setSuggestedApps(filtered);
-    }).catch(() => {});
+    if (step !== 0) return;
+    const t = setTimeout(() => next(), 1200);
+    return () => clearTimeout(t);
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== 9) return;
+    if (Platform.OS === 'android' && getUsageStats) {
+      getUsageStats().then(stats => {
+        if (!stats || !stats.length) return;
+        const filtered = stats
+          .filter(s => ANDROID_BAD_PKGS.includes(s.packageName))
+          .sort((a, b) => b.totalMinutes - a.totalMinutes)
+          .slice(0, 5)
+          .map(s => ({ id: s.packageName, name: s.name, totalMinutes: s.totalMinutes }));
+        if (filtered.length > 0) setSuggestedApps(filtered);
+      }).catch(() => {});
+    } else if (Platform.OS === 'ios') {
+      Promise.all(
+        IOS_APP_SCHEMES.map(app =>
+          Linking.canOpenURL(app.scheme)
+            .then(can => can ? app : null)
+            .catch(() => null)
+        )
+      ).then(results => {
+        const installed = results.filter(Boolean);
+        if (installed.length > 0) setSuggestedApps(installed);
+      });
+    }
   }, [step]);
 
   const goTo = (i) => {
@@ -101,13 +129,29 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   const next = () => goTo(step + 1);
   const prev = () => goTo(step - 1);
 
-  const validateEmail = () => {
+  const validateEmail = async () => {
     const domain = (email.split('@')[1] || '').toLowerCase();
-    const ok =
-      /\.(edu|ac\.[a-z]{2,}|edu\.[a-z]{2,})$/i.test(domain) ||
-      /mcgill|concordia|umontreal|utoronto|ubc|queens|uottawa|harvard|mit|stanford|yale|columbia/i.test(domain);
-    if (!ok) { setEmailErr('School email required (e.g. name@mcgill.ca or name@school.edu)'); return; }
+    if (!domain) { setEmailErr('Enter your school email address'); return; }
+    setOtpSending(true);
+    const valid = await isUniversityDomain(domain);
+    if (!valid) {
+      setOtpSending(false);
+      setEmailErr('School email required (e.g. name@mcgill.ca or name@school.edu)');
+      return;
+    }
+    const { error } = await supabase.auth.signInWithOtp({ email });
+    setOtpSending(false);
+    if (error) { setEmailErr(error.message); return; }
     setEmailErr('');
+    next();
+  };
+
+  const verifyOtp = async () => {
+    const { error } = await supabase.auth.verifyOtp({
+      email, token: otpCode, type: 'email',
+    });
+    if (error) { setOtpErr('Incorrect code. Try again.'); return; }
+    setOtpErr('');
     next();
   };
 
@@ -188,32 +232,18 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
     { title: 'Productivity', stat: '2.1 hrs',          sub: 'less daily screen time, on average'   },
   ];
 
-  // Slides 1, 6, 8, 9 handle their own CTA buttons
-  const SELF_NAV = new Set([1, 6, 8, 9]);
+  // Slides that handle their own CTA buttons (no bottom nav Next button)
+  // 0=welcome(auto-advance), 1=permission, 2=email, 3=OTP, 7=notifs, 9=app suggestions, 10=set first block
+  const SELF_NAV = new Set([0, 1, 2, 3, 7, 9, 10]);
 
   // ── Slides ─────────────────────────────────────────────────────────────────
   const slides = [
 
     /* 0 — Welcome */
     <View key="s0" style={[st.slide, { justifyContent: 'flex-start', paddingTop: H * 0.08 }]}>
-      <View style={st.badge}><Text style={st.badgeTxt}>NOVA FOCUS</Text></View>
+      <View style={st.badge}><Text style={st.badgeTxt}>STUDENT FOCUS</Text></View>
       <Text style={st.bigTitle}>Take back{'\n'}your time.</Text>
-      <Text style={st.sub}>Here's how it works.</Text>
-      <View style={{ marginTop: 32 }}>
-        {[
-          ['01', 'See your reality',      'Compare what you think vs. what you actually do.'],
-          ['02', 'Block what drains you', 'Set time windows and limits that stick.'],
-          ['03', 'Get the years back',    'Small changes compound into real time saved.'],
-        ].map(([n, h, d]) => (
-          <View key={n} style={st.stepRow}>
-            <Text style={st.stepNum}>{n}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={st.stepTitle}>{h}</Text>
-              <Text style={st.stepDesc}>{d}</Text>
-            </View>
-          </View>
-        ))}
-      </View>
+      <Text style={st.sub}>The free app blocker for students.</Text>
     </View>,
 
     /* 1 — Permission */
@@ -224,8 +254,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       <Text style={st.bigTitle}>We need to see{'\n'}what you're using.</Text>
       <Text style={st.sub}>To block apps and show your real usage, we need access to your activity data.</Text>
       <View style={st.sysSheet}>
-        <Text style={st.sheetTitle}>"Nova Focus" wants to track activity across other apps.</Text>
-        <Text style={st.sheetBody}>
+        <Text style={st.sheetTitle}>
           This lets us show you exactly where your time is going and block the apps that pull you away from what matters.
         </Text>
         <View style={st.sheetBtns}>
@@ -258,16 +287,74 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
           onSubmitEditing={validateEmail}
         />
         {!!emailErr && <Text style={st.errTxt}>{emailErr}</Text>}
-        <TouchableOpacity style={[st.btn, { marginTop: 20 }]} onPress={validateEmail}>
-          <Text style={st.btnTxt}>Continue</Text>
+        <TouchableOpacity
+          style={[st.btn, { marginTop: 20, opacity: otpSending ? 0.6 : 1 }]}
+          onPress={validateEmail}
+          disabled={otpSending}
+        >
+          {otpSending
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={st.btnTxt}>Continue</Text>}
         </TouchableOpacity>
         <Text style={st.mutedNote}>
-          A one-time verification code sent to your inbox will be added in a future update.
+          A 6-digit code will be sent to your inbox to verify you own this address.
+        </Text>
+        <Text style={[st.mutedNote, { marginTop: 20 }]}>
+          By continuing, you agree to our{' '}
+          <Text
+            style={{ color: O.white, textDecorationLine: 'underline' }}
+            onPress={() => Linking.openURL('https://livefonam.github.io/AppBlocker/terms')}
+          >
+            Terms of Service
+          </Text>
+          {' '}and{' '}
+          <Text
+            style={{ color: O.white, textDecorationLine: 'underline' }}
+            onPress={() => Linking.openURL('https://livefonam.github.io/AppBlocker/privacy')}
+          >
+            Privacy Policy
+          </Text>
+          .
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>,
 
-    /* 3 — Daily guess (horizontal value scroller) */
+    /* 3 — OTP verification */
+    <KeyboardAvoidingView key="s-otp" behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: W }}>
+      <ScrollView contentContainerStyle={[st.slide, { justifyContent: 'center' }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <Text style={st.bigTitle}>Check your inbox.</Text>
+        <Text style={[st.sub, { marginBottom: 8 }]}>
+          We sent a 6-digit code to{'\n'}
+          <Text style={{ color: O.white, fontWeight: '600' }}>{email || 'your email'}</Text>
+        </Text>
+        <TextInput
+          style={[st.input, { letterSpacing: 10, fontSize: 28, textAlign: 'center', marginTop: 24 }, otpErr ? { borderColor: O.red } : null]}
+          placeholder="------"
+          placeholderTextColor={O.muted}
+          value={otpCode}
+          onChangeText={v => { setOtpCode(v.replace(/\D/g, '').slice(0, 6)); setOtpErr(''); }}
+          keyboardType="number-pad"
+          maxLength={6}
+          autoFocus
+        />
+        {!!otpErr && <Text style={st.errTxt}>{otpErr}</Text>}
+        <TouchableOpacity
+          style={[st.btn, { marginTop: 20, opacity: otpCode.length < 6 ? 0.4 : 1 }]}
+          onPress={verifyOtp}
+          disabled={otpCode.length < 6}
+        >
+          <Text style={st.btnTxt}>Verify</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => { setOtpCode(''); setOtpErr(''); goTo(2); }}
+          style={{ alignSelf: 'center', marginTop: 16 }}
+        >
+          <Text style={st.link}>Wrong email? Go back</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>,
+
+    /* 4 — Daily guess (horizontal value scroller) */
     <View key="s3" style={st.slide}>
       <Text style={[st.bigTitle, { textAlign: 'center' }]}>How much time do you{'\n'}think you use daily?</Text>
       <Text style={[st.sub, { textAlign: 'center' }]}>Swipe to your guess</Text>
@@ -334,7 +421,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
         renderItem={({ item }) => (
           <View style={[st.hCard, { width: W * 0.65, marginRight: 16, alignItems: 'center' }]}>
             <Text style={[st.hCardLabel, { marginBottom: 8 }]}>{item.title}</Text>
-            <Text style={[st.hCardValue, { color: O.blue, fontSize: 44 }]}>{item.stat}</Text>
+            <Text style={[st.hCardValue, { color: O.white, fontSize: 44 }]}>{item.stat}</Text>
             <Text style={[st.hCardSub, { textAlign: 'center' }]}>{item.sub}</Text>
           </View>
         )}
@@ -346,13 +433,13 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       <Text style={st.bigTitle}>Stay informed.{'\n'}Not distracted.</Text>
       <Text style={st.sub}>We'll only notify you when it actually matters. No spam.</Text>
       <View style={[st.sysSheet, { marginTop: 32 }]}>
-        <Text style={st.sheetTitle}>"Nova Focus" would like to send you notifications.</Text>
+        <Text style={st.sheetTitle}>"Student Focus" would like to send you notifications.</Text>
         <View style={[st.notifPreview, { marginTop: 16 }]}>
-          <Text style={st.notifApp}>Nova Focus</Text>
+          <Text style={st.notifApp}>Student Focus</Text>
           <Text style={st.notifMsg}>You've hit your daily goal. Lock in.</Text>
         </View>
         <View style={[st.notifPreview, { opacity: 0.4, marginTop: 8 }]}>
-          <Text style={st.notifApp}>Nova Focus</Text>
+          <Text style={st.notifApp}>Student Focus</Text>
           <Text style={st.notifMsg}>7-day streak. You're 2h ahead of last week.</Text>
         </View>
         <View style={[st.sheetBtns, { marginTop: 20 }]}>
@@ -487,15 +574,17 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       </ScrollView>
 
       <View style={st.navBar}>
-        {step > 0 ? (
+        {step > 1 ? (
           <TouchableOpacity onPress={prev} style={st.backBtn}>
             <Text style={st.backTxt}>Back</Text>
           </TouchableOpacity>
         ) : <View style={{ width: 60 }} />}
 
         {!SELF_NAV.has(step) ? (
-          <TouchableOpacity onPress={step === 2 ? validateEmail : next} style={st.nextBtn}>
-            <Text style={st.nextTxt}>Next</Text>
+          <TouchableOpacity onPress={step === 2 ? validateEmail : next} style={[st.nextBtn, otpSending && { opacity: 0.5 }]} disabled={otpSending}>
+            {step === 2 && otpSending
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={st.nextTxt}>Next</Text>}
           </TouchableOpacity>
         ) : <View style={{ width: 60 }} />}
       </View>
@@ -516,93 +605,93 @@ const st = StyleSheet.create({
   },
   badge: {
     backgroundColor: O.dim, paddingHorizontal: 12, paddingVertical: 5,
-    borderRadius: 8, alignSelf: 'flex-start', marginBottom: 20,
+    alignSelf: 'flex-start', marginBottom: 20,
   },
-  badgeTxt: { color: O.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5 },
+  badgeTxt: { color: O.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' },
   bigTitle: { fontSize: 34, fontWeight: '700', color: O.white, lineHeight: 42, marginBottom: 12 },
   sub: { fontSize: 16, color: O.muted, lineHeight: 24, marginBottom: 8 },
   stepRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 22 },
-  stepNum: { fontSize: 11, fontWeight: '700', color: O.blue, width: 36, marginTop: 2, letterSpacing: 1 },
+  stepNum: { fontSize: 11, fontWeight: '700', color: O.muted, width: 36, marginTop: 2, letterSpacing: 1 },
   stepTitle: { fontSize: 16, fontWeight: '600', color: O.white, marginBottom: 3 },
   stepDesc: { fontSize: 14, color: O.muted, lineHeight: 20 },
   requiredBanner: {
-    backgroundColor: '#2a1a00', borderWidth: 1, borderColor: '#ff9500',
-    borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8,
+    backgroundColor: '#1a1000', borderWidth: 1, borderColor: '#ff9500',
+    paddingHorizontal: 14, paddingVertical: 8,
     marginBottom: 28, alignSelf: 'stretch',
   },
   requiredTxt: { color: '#ff9500', fontSize: 13, fontWeight: '600', textAlign: 'center' },
   sysSheet: {
-    backgroundColor: '#1c1c1e', borderRadius: 16, padding: 20, marginTop: 24,
-    borderWidth: 1, borderColor: O.border,
+    backgroundColor: O.card, padding: 20, marginTop: 24,
+    borderWidth: 1, borderColor: O.border, borderRadius: 10,
   },
   sheetTitle: { fontSize: 17, fontWeight: '600', color: O.white, textAlign: 'center', marginBottom: 12 },
   sheetBody: { fontSize: 14, color: O.muted, textAlign: 'center', lineHeight: 22, marginBottom: 20 },
   sheetBtns: { flexDirection: 'row', gap: 12 },
-  denyBtn: { flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: O.dim, alignItems: 'center' },
+  denyBtn: { flex: 1, paddingVertical: 13, borderWidth: 1, borderColor: O.border, alignItems: 'center' },
   denyTxt: { color: O.muted, fontWeight: '600', fontSize: 15 },
-  allowBtn: { flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: O.blue, alignItems: 'center' },
-  allowTxt: { color: O.white, fontWeight: '700', fontSize: 15 },
+  allowBtn: { flex: 1, paddingVertical: 13, backgroundColor: O.white, alignItems: 'center' },
+  allowTxt: { color: O.bg, fontWeight: '700', fontSize: 15 },
   input: {
-    borderWidth: 1, borderColor: O.border, borderRadius: 12,
-    padding: 14, color: O.white, fontSize: 16, backgroundColor: '#141414', marginTop: 12,
+    borderWidth: 1, borderColor: O.border,
+    padding: 14, color: O.white, fontSize: 16, backgroundColor: O.card, marginTop: 12, borderRadius: 10,
   },
   errTxt: { color: O.red, fontSize: 13, marginTop: 6 },
   mutedNote: { color: O.muted, fontSize: 12, marginTop: 16, lineHeight: 18, textAlign: 'center' },
-  btn: { backgroundColor: O.blue, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
-  btnTxt: { color: O.white, fontWeight: '700', fontSize: 16 },
+  btn: { backgroundColor: O.white, paddingVertical: 15, alignItems: 'center', borderRadius: 10 },
+  btnTxt: { color: O.bg, fontWeight: '700', fontSize: 16, letterSpacing: 0.5 },
   link: { color: O.muted, fontSize: 14 },
   scrollerBig: { fontSize: 88, fontWeight: '700', color: O.white },
   scrollerUnit: { fontSize: 20, color: O.muted, marginTop: -8 },
   swipeHint: { color: O.muted, fontSize: 13, textAlign: 'center', marginTop: 16 },
   hCard: {
-    backgroundColor: '#141414', borderRadius: 16, padding: 24,
-    borderWidth: 1, borderColor: O.border,
+    backgroundColor: O.card, padding: 24,
+    borderWidth: 1, borderColor: O.border, borderRadius: 10,
   },
-  hCardLabel: { fontSize: 12, fontWeight: '700', color: O.muted, letterSpacing: 1, marginBottom: 12 },
+  hCardLabel: { fontSize: 12, fontWeight: '700', color: O.muted, letterSpacing: 1, marginBottom: 12, textTransform: 'uppercase' },
   hCardValue: { fontSize: 52, fontWeight: '700', color: O.white, marginBottom: 8 },
   hCardSub: { fontSize: 14, color: O.muted, lineHeight: 20 },
   notifPreview: {
-    backgroundColor: '#242424', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: O.border,
+    backgroundColor: O.card, padding: 14, borderWidth: 1, borderColor: O.border,
   },
-  notifApp: { fontSize: 12, fontWeight: '700', color: O.muted, marginBottom: 3 },
+  notifApp: { fontSize: 12, fontWeight: '700', color: O.muted, marginBottom: 3, textTransform: 'uppercase', letterSpacing: 1 },
   notifMsg: { fontSize: 14, color: O.white },
-  modeCard: { padding: 20, borderRadius: 16, borderWidth: 1, borderColor: O.border, backgroundColor: '#141414' },
-  modeCardOn: { borderColor: O.blue, backgroundColor: '#0a1f3c' },
+  modeCard: { padding: 20, borderWidth: 1, borderColor: O.border, backgroundColor: O.card, borderRadius: 10 },
+  modeCardOn: { borderColor: O.white, backgroundColor: 'rgba(255,255,255,0.06)' },
   modeTitle: { fontSize: 18, fontWeight: '700', color: O.muted, marginBottom: 8 },
   modeSub: { fontSize: 14, color: O.muted, lineHeight: 21 },
   appRow: {
-    flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, marginBottom: 10,
-    backgroundColor: '#141414', borderWidth: 1, borderColor: O.border,
+    flexDirection: 'row', alignItems: 'center', padding: 16, marginBottom: 10,
+    backgroundColor: O.card, borderWidth: 1, borderColor: O.border, borderRadius: 10,
   },
-  appRowOn: { borderColor: O.blue, backgroundColor: '#0a1f3c' },
+  appRowOn: { borderColor: O.white, backgroundColor: 'rgba(255,255,255,0.06)' },
   appName: { fontSize: 16, fontWeight: '600', color: O.muted },
   appMin: { fontSize: 12, color: O.muted, marginTop: 2 },
-  cb: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: O.muted, alignItems: 'center', justifyContent: 'center' },
-  cbOn: { backgroundColor: O.blue, borderColor: O.blue },
-  sectionLbl: { fontSize: 11, fontWeight: '700', color: O.muted, letterSpacing: 1.5, marginBottom: 10, marginTop: 4 },
+  cb: { width: 24, height: 24, borderWidth: 2, borderColor: O.muted, alignItems: 'center', justifyContent: 'center' },
+  cbOn: { backgroundColor: O.white, borderColor: O.white },
+  sectionLbl: { fontSize: 11, fontWeight: '700', color: O.muted, letterSpacing: 1.5, marginBottom: 10, marginTop: 4, textTransform: 'uppercase' },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
-  pill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#141414', borderWidth: 1, borderColor: O.border },
-  pillOn: { backgroundColor: O.blue, borderColor: O.blue },
+  pill: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: O.card, borderWidth: 1, borderColor: O.border, borderRadius: 10 },
+  pillOn: { backgroundColor: 'rgba(255,255,255,0.12)', borderColor: O.white },
   pillTxt: { fontSize: 14, color: O.muted },
   timeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  timeBox: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#141414', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: O.border },
-  timeAdj: { fontSize: 22, color: O.blue, paddingHorizontal: 10 },
+  timeBox: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: O.card, padding: 12, borderWidth: 1, borderColor: O.border, borderRadius: 10 },
+  timeAdj: { fontSize: 22, color: O.white, paddingHorizontal: 10 },
   timeTxt: { fontSize: 16, fontWeight: '600', color: O.white },
   timeSep: { fontSize: 14, color: O.muted },
   pinDots: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginBottom: 20 },
-  dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: O.muted },
-  dotFilled: { backgroundColor: O.blue, borderColor: O.blue },
+  dot: { width: 18, height: 18, borderWidth: 2, borderColor: O.muted, borderRadius: 9 },
+  dotFilled: { backgroundColor: O.white, borderColor: O.white },
   numPad: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 32 },
   numKey: { width: '33.33%', paddingVertical: 18, alignItems: 'center' },
   numKeyTxt: { fontSize: 28, fontWeight: '300', color: O.white },
-  progressTrack: { height: 3, backgroundColor: O.dim },
-  progressFill: { height: 3, backgroundColor: O.blue },
+  progressTrack: { height: 2, backgroundColor: O.border },
+  progressFill: { height: 2, backgroundColor: O.white },
   navBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 24, paddingVertical: 16, borderTopWidth: 1, borderTopColor: O.border,
   },
   backBtn: { paddingVertical: 8, paddingHorizontal: 12 },
   backTxt: { color: O.muted, fontSize: 16 },
-  nextBtn: { backgroundColor: O.blue, paddingVertical: 10, paddingHorizontal: 24, borderRadius: 20 },
-  nextTxt: { color: O.white, fontSize: 16, fontWeight: '600' },
+  nextBtn: { backgroundColor: O.white, paddingVertical: 10, paddingHorizontal: 24 },
+  nextTxt: { color: O.bg, fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
 });

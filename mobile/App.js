@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Component } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Switch, TextInput, Modal, Alert, Dimensions, StatusBar,
@@ -9,28 +9,37 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Onboarding from './Onboarding';
 import { useAppBlocker } from './src/useAppBlocker';
+import { supabase } from './src/supabase';
 
 const { width: W } = Dimensions.get('window');
 
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { err: null }; }
+  static getDerivedStateFromError(e) { return { err: e }; }
+  render() {
+    if (this.state.err) {
+      return (
+        <View style={{ flex:1, backgroundColor:'#000', justifyContent:'center', padding:32 }}>
+          <Text style={{ color:'#ff453a', fontSize:16, fontWeight:'700', marginBottom:12 }}>Startup error</Text>
+          <Text style={{ color:'#fff', fontSize:12, lineHeight:18 }}>{String(this.state.err)}</Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const C = {
-  bg:       '#060d18',
-  bg2:      '#0a1525',
-  card:     '#0f1d2e',
-  cardGlow: '#0d2a3a',
-  border:   'rgba(255,255,255,0.07)',
-  cyan:     '#00e5ff',
-  cyanDim:  'rgba(0,229,255,0.15)',
-  mint:     '#00ffb0',
-  mintDim:  'rgba(0,255,176,0.12)',
+  bg:       '#000000',
+  bg2:      '#0a0a0a',
+  card:     '#111111',
+  border:   '#1c1c1c',
+  white:    '#ffffff',
+  muted:    'rgba(255,255,255,0.4)',
+  dim:      'rgba(255,255,255,0.18)',
+  red:      '#ff453a',
   orange:   '#ff9f0a',
   orangeDim:'rgba(255,159,10,0.15)',
-  blue:     '#1a6fff',
-  blueDim:  'rgba(26,111,255,0.2)',
-  red:      '#ff453a',
-  white:    '#ffffff',
-  off:      '#e0f0ff',
-  muted:    'rgba(180,210,255,0.5)',
-  dim:      'rgba(180,210,255,0.25)',
 };
 
 const COMMON_APPS = [
@@ -69,7 +78,7 @@ function Label({ children, style }) {
 function Divider() {
   return <View style={{ height: 1, backgroundColor: C.border, marginVertical: 12 }} />;
 }
-function StatBox({ title, value, sub, accent = C.cyan }) {
+function StatBox({ title, value, sub, accent = C.white }) {
   return (
     <View style={s.statBox}>
       <Text style={[s.statVal, { color: accent }]}>{value}</Text>
@@ -206,7 +215,7 @@ function TimeLockModal({ visible, lockUntil, onExpired, onCancel }) {
 
   const mins = Math.floor(remaining / 60000);
   const secs = Math.floor((remaining % 60000) / 1000);
-  const progress = lockUntil ? Math.max(0, (lockUntil - Date.now()) / (5 * 60 * 1000)) : 0;
+  const progress = lockUntil ? Math.max(0, (lockUntil - Date.now()) / (2 * 60 * 1000)) : 0;
 
   return (
     <Modal visible={visible} transparent animationType="fade">
@@ -330,7 +339,7 @@ function BlockedScreenModal({ visible, blockTitle, endMins, appId = 'unknown', o
         </View>
 
         <TouchableOpacity onPress={onClose} style={s.blockedBack}>
-          <Text style={s.blockedBackTxt}>Back to Nova Focus</Text>
+          <Text style={s.blockedBackTxt}>Back to Student Focus</Text>
         </TouchableOpacity>
       </View>
     </Modal>
@@ -392,7 +401,7 @@ function SettingsSheet({ visible, onClose, blocker, blockTitle, endMins, onPrevi
           <View style={{ width: 60 }} />
           <Text style={{ color: C.white, fontWeight: '700', fontSize: 16 }}>Settings</Text>
           <TouchableOpacity onPress={onClose} style={{ width: 60, alignItems: 'flex-end' }}>
-            <Text style={{ color: C.cyan, fontSize: 16 }}>Done</Text>
+            <Text style={{ color: C.white, fontSize: 16 }}>Done</Text>
           </TouchableOpacity>
         </View>
 
@@ -401,7 +410,7 @@ function SettingsSheet({ visible, onClose, blocker, blockTitle, endMins, onPrevi
           {email ? (
             <Card style={{ marginBottom: 20 }}>
               <Label style={{ marginBottom: 4 }}>ACCOUNT</Label>
-              <Text style={{ color: C.off, fontSize: 15 }}>{email}</Text>
+              <Text style={{ color: C.white, fontSize: 15 }}>{email}</Text>
             </Card>
           ) : null}
 
@@ -423,7 +432,7 @@ function SettingsSheet({ visible, onClose, blocker, blockTitle, endMins, onPrevi
             <Label style={{ marginBottom: 8 }}>BEFORE DELETING THIS APP</Label>
             <Text style={[s.muted, { fontSize: 13, marginBottom: 14 }]}>
               {blocker.isBlocking
-                ? `You currently have ${blocker.selectedCount} app${blocker.selectedCount === 1 ? '' : 's'} blocked. Deleting Nova Focus will remove all blocks immediately.`
+                ? `You currently have ${blocker.selectedCount} app${blocker.selectedCount === 1 ? '' : 's'} blocked. Deleting Student Focus will remove all blocks immediately.`
                 : 'No active blocks. Safe to delete.'}
             </Text>
             {blocker.isBlocking && (
@@ -464,7 +473,7 @@ function AndroidAppPickerModal({ visible, apps, blockedPackages, onToggle, onClo
           <View style={{ width: 60 }} />
           <Text style={{ color: C.white, fontWeight: '700', fontSize: 16 }}>Choose Apps to Block</Text>
           <TouchableOpacity onPress={onClose} style={{ width: 60, alignItems: 'flex-end' }}>
-            <Text style={{ color: C.cyan, fontSize: 16 }}>Done</Text>
+            <Text style={{ color: C.white, fontSize: 16 }}>Done</Text>
           </TouchableOpacity>
         </View>
         <FlatList
@@ -481,11 +490,11 @@ function AndroidAppPickerModal({ visible, apps, blockedPackages, onToggle, onClo
                 <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: (item.color || '#888') + '25', justifyContent:'center', alignItems:'center', marginRight: 14 }}>
                   <Text style={{ color: item.color || '#888', fontSize: 13, fontWeight: '800' }}>{item.icon || item.name?.slice(0,2)}</Text>
                 </View>
-                <Text style={{ color: C.off, fontSize: 16, fontWeight: '600', flex: 1 }}>{item.name}</Text>
+                <Text style={{ color: C.white, fontSize: 16, fontWeight: '600', flex: 1 }}>{item.name}</Text>
                 <View style={{
                   width: 24, height: 24, borderRadius: 12,
-                  backgroundColor: blocked ? C.cyan : 'transparent',
-                  borderWidth: 2, borderColor: blocked ? C.cyan : C.muted,
+                  backgroundColor: blocked ? C.white : 'transparent',
+                  borderWidth: 2, borderColor: blocked ? C.white : C.muted,
                   justifyContent: 'center', alignItems: 'center',
                 }}>
                   {blocked && <Text style={{ color: '#000', fontSize: 14, fontWeight: '800' }}>x</Text>}
@@ -501,7 +510,7 @@ function AndroidAppPickerModal({ visible, apps, blockedPackages, onToggle, onClo
 
 // ─── Block Editor ──────────────────────────────────────────────────────────────
 
-function BlockEditor({ visible, state, setState, blocker, onClose, onSave }) {
+function BlockEditor({ visible, state, setState, blocker, onClose, onSave, onStop }) {
   const { blockTitle, startMinutes, endMinutes, repeatRule } = state;
   const { isBlocking, selectedCount, blockedPackages, installedApps, openAppPicker, stopBlocking, togglePackage } = blocker;
   const [showAndroidPicker, setShowAndroidPicker] = useState(false);
@@ -513,11 +522,11 @@ function BlockEditor({ visible, state, setState, blocker, onClose, onSave }) {
         <View style={{ flex: 1, backgroundColor: C.bg }}>
           <View style={s.modalNav}>
             <TouchableOpacity onPress={onClose}>
-              <Text style={{ color: C.cyan, fontSize: 16 }}>Cancel</Text>
+              <Text style={{ color: C.white, fontSize: 16 }}>Cancel</Text>
             </TouchableOpacity>
             <Text style={{ color: C.white, fontWeight: '700', fontSize: 16 }}>Edit Block</Text>
             <TouchableOpacity onPress={onSave}>
-              <Text style={{ color: C.cyan, fontSize: 16, fontWeight: '700' }}>{isBlocking ? 'Update' : 'Save'}</Text>
+              <Text style={{ color: C.white, fontSize: 16, fontWeight: '700' }}>{isBlocking ? 'Update' : 'Save'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -540,7 +549,7 @@ function BlockEditor({ visible, state, setState, blocker, onClose, onSave }) {
                 onPress={() => openAppPicker(setShowAndroidPicker)}
               >
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: C.off, fontWeight: '700', fontSize: 15 }}>
+                  <Text style={{ color: C.white, fontWeight: '700', fontSize: 15 }}>
                     {selectedCount === 0 ? 'Choose Apps to Block' : `${selectedCount} apps selected`}
                   </Text>
                   <Text style={[s.muted, { fontSize: 12, marginTop: 2 }]}>
@@ -578,8 +587,8 @@ function BlockEditor({ visible, state, setState, blocker, onClose, onSave }) {
 
             {isBlocking && (
               <TouchableOpacity style={s.deleteBtn} onPress={() => {
-                Alert.alert('Stop All Blocks?', 'Apps will become accessible immediately.', [
-                  { text: 'Stop', style: 'destructive', onPress: () => { stopBlocking(); onClose(); } },
+                Alert.alert('Stop All Blocks?', 'Apps will become accessible after a 2-minute cooldown.', [
+                  { text: 'Stop', style: 'destructive', onPress: onStop },
                   { text: 'Cancel', style: 'cancel' },
                 ]);
               }}>
@@ -617,7 +626,7 @@ function InsightsScreen({ state, blocker, onManageBlock, onSettings }) {
   return (
     <ScrollView style={s.screen} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={[s.screenHeader, { justifyContent: 'space-between' }]}>
-        <Text style={s.screenTitle}>Nova Focus</Text>
+        <Text style={s.screenTitle}>Student Focus</Text>
         <TouchableOpacity onPress={onSettings} style={s.gearBtn}>
           <Text style={{ color: C.muted, fontSize: 20 }}>--</Text>
         </TouchableOpacity>
@@ -630,15 +639,15 @@ function InsightsScreen({ state, blocker, onManageBlock, onSettings }) {
           <Text style={s.bigNum}>{dur(screenTimeMinutes)}</Text>
           <Text style={s.muted}>screen time</Text>
         </View>
-        <BarChart bars={HOURLY.slice(6, 18)} color={C.cyan} height={56} labels={['6 AM', '9 AM', '12 PM', '3 PM']} />
+        <BarChart bars={HOURLY.slice(6, 18)} color={C.white} height={56} labels={['6 AM', '9 AM', '12 PM', '3 PM']} />
       </Card>
 
       {/* Active block card */}
-      <Card style={{ marginBottom: 14, borderColor: isBlocking ? 'rgba(0,229,255,0.20)' : C.border }}>
+      <Card style={{ marginBottom: 14, borderColor: isBlocking ? 'rgba(255,255,255,0.20)' : C.border }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={[s.statusDot, { backgroundColor: isBlocking ? C.cyan : C.muted }]} />
+          <View style={[s.statusDot, { backgroundColor: isBlocking ? C.white : C.muted }]} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: isBlocking ? C.cyan : C.muted, fontWeight: '700', fontSize: 16 }}>
+            <Text style={{ color: isBlocking ? C.white : C.muted, fontWeight: '700', fontSize: 16 }}>
               {isBlocking ? 'Blocking Active' : 'Not Blocking'}
             </Text>
             <Text style={s.muted}>
@@ -650,7 +659,7 @@ function InsightsScreen({ state, blocker, onManageBlock, onSettings }) {
             </Text>
           </View>
           <TouchableOpacity onPress={onManageBlock} style={s.manageBtn}>
-            <Text style={s.manageTxt}>Manage</Text>
+            <Text style={[s.manageTxt, { color: C.white }]}>Manage</Text>
           </TouchableOpacity>
         </View>
       </Card>
@@ -658,7 +667,7 @@ function InsightsScreen({ state, blocker, onManageBlock, onSettings }) {
       {/* AI insight card */}
       <Card style={{ marginBottom: 14, backgroundColor: C.bg2 }}>
         <Label style={{ marginBottom: 8 }}>INSIGHT</Label>
-        <Text style={{ color: C.off, fontSize: 15, lineHeight: 22 }}>{insightMsg}</Text>
+        <Text style={{ color: C.white, fontSize: 15, lineHeight: 22 }}>{insightMsg}</Text>
       </Card>
 
       {/* Weekly trend */}
@@ -669,7 +678,7 @@ function InsightsScreen({ state, blocker, onManageBlock, onSettings }) {
         </View>
         <BarChart
           bars={WEEKLY}
-          color={C.mint}
+          color={C.white}
           height={72}
           labels={['Mon','Tue','Wed','Thu','Fri','Sat','Sun']}
         />
@@ -703,7 +712,7 @@ function IdeasScreen() {
       {IDEAS.map((idea, i) => (
         <TouchableOpacity key={i} activeOpacity={0.75}>
           <Card style={{ marginBottom: 14 }}>
-            <Text style={{ color: C.off, fontWeight: '700', fontSize: 16, marginBottom: 6 }}>{idea.title}</Text>
+            <Text style={{ color: C.white, fontWeight: '700', fontSize: 16, marginBottom: 6 }}>{idea.title}</Text>
             <Text style={[s.muted, { fontSize: 14, lineHeight: 20 }]}>{idea.desc}</Text>
           </Card>
         </TouchableOpacity>
@@ -721,7 +730,7 @@ function IdeasScreen() {
 
 const Tab = createBottomTabNavigator();
 
-export default function App() {
+function App() {
   const [onboardingDone, setOnboardingDone] = useState(null);
   const blocker = useAppBlocker();
 
@@ -750,9 +759,12 @@ export default function App() {
   const [showBlockedPreview, setShowBlockedPreview] = useState(false);
   const [lockUntil,        setLockUntil]         = useState(null);
   const [toast,            setToast]             = useState(null);
+  const pendingAction  = useRef(null);
+  const preEditState   = useRef(null);
 
   useEffect(() => {
     AsyncStorage.getItem('@nova_onboarding_done').then(v => setOnboardingDone(v === 'true'));
+    supabase.auth.getSession(); // restores persisted session silently on startup
   }, []);
 
   const showToast = (msg) => {
@@ -760,32 +772,34 @@ export default function App() {
     setTimeout(() => setToast(null), 2500);
   };
 
-  const handleManageBlock = async () => {
-    const pinStored = await AsyncStorage.getItem('@nova_pin');
+  const handleManageBlock = () => {
+    preEditState.current = {
+      startMinutes: appState.startMinutes,
+      endMinutes:   appState.endMinutes,
+      selectedCount: blocker.selectedCount,
+      isBlocking:   blocker.isBlocking,
+    };
+    setShowEditor(true);
+  };
+
+  const blockDuration = (start, end) =>
+    end > start ? end - start : 1440 - start + end;
+
+  const applyLockThen = async (action) => {
     const storedLock = await AsyncStorage.getItem('@nova_lock_until');
     const now = Date.now();
-
     if (storedLock && parseInt(storedLock) > now) {
       setLockUntil(parseInt(storedLock));
-      setShowTimeLock(true);
-      return;
+    } else {
+      const until = now + 2 * 60 * 1000;
+      setLockUntil(until);
+      await AsyncStorage.setItem('@nova_lock_until', String(until));
     }
-
-    const until = now + 5 * 60 * 1000;
-    setLockUntil(until);
-    await AsyncStorage.setItem('@nova_lock_until', String(until));
+    pendingAction.current = action;
     setShowTimeLock(true);
   };
 
-  const onLockExpired = async () => {
-    setShowTimeLock(false);
-    await AsyncStorage.removeItem('@nova_lock_until');
-    const pin = await AsyncStorage.getItem('@nova_pin');
-    if (pin) setShowPinModal(true);
-    else setShowEditor(true);
-  };
-
-  const handleSave = async () => {
+  const doSave = async () => {
     await blocker.startBlocking(appState.startMinutes, appState.endMinutes);
     await AsyncStorage.setItem('@nova_app_state', JSON.stringify({
       blockTitle:   appState.blockTitle,
@@ -794,14 +808,51 @@ export default function App() {
       repeatRule:   appState.repeatRule,
     }));
     setShowEditor(false);
-    showToast('Block started');
+    showToast('Block saved');
+  };
+
+  const handleSave = async () => {
+    const pre = preEditState.current;
+    const wasBlocking = pre?.isBlocking;
+    const newDur = blockDuration(appState.startMinutes, appState.endMinutes);
+    const oldDur = pre ? blockDuration(pre.startMinutes, pre.endMinutes) : Infinity;
+    const isWeakening = wasBlocking && (
+      newDur < oldDur || blocker.selectedCount < (pre?.selectedCount ?? 0)
+    );
+
+    if (isWeakening) {
+      await applyLockThen(doSave);
+    } else {
+      await doSave();
+    }
+  };
+
+  const handleStopBlocking = async () => {
+    await applyLockThen(async () => {
+      await blocker.stopBlocking();
+      setShowEditor(false);
+      showToast('Blocks stopped');
+    });
+  };
+
+  const onLockExpired = async () => {
+    setShowTimeLock(false);
+    await AsyncStorage.removeItem('@nova_lock_until');
+    const pin = await AsyncStorage.getItem('@nova_pin');
+    if (pin) {
+      setShowPinModal(true);
+    } else {
+      const action = pendingAction.current;
+      pendingAction.current = null;
+      await action?.();
+    }
   };
 
   // ── Splash ────
   if (onboardingDone === null) {
     return (
       <View style={{ flex: 1, backgroundColor: '#000', alignItems:'center', justifyContent:'center' }}>
-        <Text style={{ color: C.blue, fontSize: 13, fontWeight: '700', letterSpacing: 0.5 }}>NOVA FOCUS</Text>
+        <Text style={{ color: C.white, fontSize: 13, fontWeight: '700', letterSpacing: 0.5 }}>STUDENT FOCUS</Text>
       </View>
     );
   }
@@ -836,7 +887,7 @@ export default function App() {
         screenOptions={{
           headerShown: false,
           tabBarStyle: s.tabBar,
-          tabBarActiveTintColor: C.cyan,
+          tabBarActiveTintColor: C.white,
           tabBarInactiveTintColor: C.muted,
           tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
         }}
@@ -864,7 +915,12 @@ export default function App() {
 
       <PinModal
         visible={showPinModal}
-        onSuccess={() => { setShowPinModal(false); setShowEditor(true); }}
+        onSuccess={async () => {
+          setShowPinModal(false);
+          const action = pendingAction.current;
+          pendingAction.current = null;
+          await action?.();
+        }}
         onCancel={() => setShowPinModal(false)}
       />
 
@@ -875,6 +931,7 @@ export default function App() {
         blocker={blocker}
         onClose={() => setShowEditor(false)}
         onSave={handleSave}
+        onStop={handleStopBlocking}
       />
 
       <SettingsSheet
@@ -904,6 +961,11 @@ export default function App() {
   );
 }
 
+const _App = App;
+export default function AppWithBoundary() {
+  return <ErrorBoundary><_App /></ErrorBoundary>;
+}
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
@@ -911,9 +973,9 @@ const s = StyleSheet.create({
   screenHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   screenTitle: { color: C.white, fontSize: 28, fontWeight: '800', flex: 1 },
   gearBtn: { padding: 8 },
-  card: { backgroundColor: C.card, borderRadius: 16, padding: 16, marginBottom: 0, borderWidth: 1, borderColor: C.border },
-  cardGlow: { backgroundColor: C.cardGlow, borderColor: 'rgba(0,229,255,0.12)' },
-  label: { color: C.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
+  card: { backgroundColor: C.card, borderRadius: 10, padding: 16, marginBottom: 0, borderWidth: 1, borderColor: C.border },
+  cardGlow: { backgroundColor: C.card, borderColor: 'rgba(255,255,255,0.12)' },
+  label: { color: C.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' },
   muted: { color: C.muted, fontSize: 13 },
   bigNum: { color: C.white, fontSize: 32, fontWeight: '800' },
   chartLabel: { color: C.dim, fontSize: 10 },
@@ -921,49 +983,49 @@ const s = StyleSheet.create({
   statVal: { fontSize: 22, fontWeight: '800' },
   statTitle: { color: C.muted, fontSize: 10, fontWeight: '700', letterSpacing: 0.8, marginTop: 2 },
   statSub: { color: C.dim, fontSize: 10, marginTop: 1 },
-  segWrap: { flexDirection: 'row', backgroundColor: C.bg, borderRadius: 10, padding: 3 },
-  segBtn: { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 8 },
-  segOn: { backgroundColor: C.card },
+  segWrap: { flexDirection: 'row', backgroundColor: C.bg2, borderWidth: 1, borderColor: C.border, padding: 3 },
+  segBtn: { flex: 1, paddingVertical: 7, alignItems: 'center' },
+  segOn: { backgroundColor: C.border },
   segTxt: { color: C.muted, fontSize: 13, fontWeight: '600' },
   segTxtOn: { color: C.white },
-  stepBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
-  stepTxt: { color: C.cyan, fontSize: 20, lineHeight: 24 },
+  stepBtn: { width: 36, height: 36, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+  stepTxt: { color: C.white, fontSize: 20, lineHeight: 24 },
   stepVal: { color: C.white, fontSize: 14, fontWeight: '600', marginHorizontal: 12, minWidth: 80, textAlign: 'center' },
-  primaryBtn: { backgroundColor: C.blue, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginBottom: 10 },
-  primaryTxt: { color: C.white, fontSize: 16, fontWeight: '700' },
-  ghostBtn: { borderRadius: 14, paddingVertical: 15, alignItems: 'center', borderWidth: 1, borderColor: C.border, marginBottom: 10 },
+  primaryBtn: { backgroundColor: C.white, paddingVertical: 15, alignItems: 'center', marginBottom: 10 },
+  primaryTxt: { color: C.bg, fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
+  ghostBtn: { paddingVertical: 15, alignItems: 'center', borderWidth: 1, borderColor: C.border, marginBottom: 10 },
   ghostTxt: { color: C.muted, fontSize: 16, fontWeight: '600' },
-  deleteBtn: { borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: C.orangeDim },
+  deleteBtn: { paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: C.orangeDim },
   deleteTxt: { color: C.orange, fontSize: 15, fontWeight: '600' },
   input: { color: C.white, fontSize: 16, paddingVertical: 4 },
   link: { color: C.muted, fontSize: 14 },
-  tabBar: { backgroundColor: C.bg2, borderTopColor: C.border, height: 64, paddingBottom: 10 },
+  tabBar: { backgroundColor: C.bg, borderTopColor: C.border, height: 64, paddingBottom: 10 },
   modalNav: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
-  toast: { position: 'absolute', bottom: 100, left: 40, right: 40, backgroundColor: 'rgba(10,25,50,0.95)', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.cyanDim, alignItems: 'center' },
-  toastTxt: { color: C.cyan, fontWeight: '600', fontSize: 14 },
+  toast: { position: 'absolute', bottom: 100, left: 40, right: 40, backgroundColor: 'rgba(10,10,10,0.97)', padding: 14, borderWidth: 1, borderColor: C.border, alignItems: 'center' },
+  toastTxt: { color: C.white, fontWeight: '600', fontSize: 14 },
   // PIN modal
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  pinSheet: { backgroundColor: C.bg2, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 32, paddingBottom: 48 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
+  pinSheet: { backgroundColor: C.bg2, borderTopWidth: 1, borderTopColor: C.border, padding: 32, paddingBottom: 48 },
   pinTitle: { color: C.white, fontSize: 20, fontWeight: '700', textAlign: 'center', marginBottom: 6 },
   pinSub: { color: C.muted, fontSize: 14, textAlign: 'center', marginBottom: 28 },
   pinDots: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginBottom: 28 },
-  pinDot: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: C.muted },
-  pinDotFilled: { backgroundColor: C.cyan, borderColor: C.cyan },
+  pinDot: { width: 16, height: 16, borderRadius: 0, borderWidth: 2, borderColor: C.muted },
+  pinDotFilled: { backgroundColor: C.white, borderColor: C.white },
   numPad: { flexDirection: 'row', flexWrap: 'wrap' },
   numKey: { width: '33.33%', paddingVertical: 16, alignItems: 'center' },
   numKeyTxt: { fontSize: 26, fontWeight: '300', color: C.white },
   // Time lock modal
-  timeLockSheet: { backgroundColor: C.bg2, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 32, paddingBottom: 48 },
-  lockTimer: { color: C.cyan, fontSize: 56, fontWeight: '800', textAlign: 'center', marginVertical: 16 },
-  lockTrack: { height: 6, backgroundColor: C.bg, borderRadius: 3, overflow: 'hidden', marginHorizontal: 16 },
-  lockBar: { height: 6, backgroundColor: C.cyan, borderRadius: 3 },
+  timeLockSheet: { backgroundColor: C.bg2, borderTopWidth: 1, borderTopColor: C.border, padding: 32, paddingBottom: 48 },
+  lockTimer: { color: C.white, fontSize: 56, fontWeight: '800', textAlign: 'center', marginVertical: 16 },
+  lockTrack: { height: 3, backgroundColor: C.border, overflow: 'hidden', marginHorizontal: 16 },
+  lockBar: { height: 3, backgroundColor: C.white },
   // Blocked screen
-  blockedBg: { flex: 1, backgroundColor: '#0a0a0a', justifyContent: 'center', alignItems: 'center', padding: 32 },
-  blockedTitle: { color: C.white, fontSize: 28, fontWeight: '900', textAlign: 'center', letterSpacing: 1, marginBottom: 8 },
+  blockedBg: { flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  blockedTitle: { color: C.white, fontSize: 28, fontWeight: '900', textAlign: 'center', letterSpacing: 2, marginBottom: 8 },
   blockedSub: { color: C.muted, fontSize: 18, textAlign: 'center', marginBottom: 4 },
   blockedName: { color: C.dim, fontSize: 14, textAlign: 'center', marginBottom: 48 },
   holdWrap: { width: '100%', alignItems: 'center' },
-  holdBtn: { width: '100%', borderRadius: 16, overflow: 'hidden', backgroundColor: '#1a1a1a', marginBottom: 10 },
+  holdBtn: { width: '100%', overflow: 'hidden', backgroundColor: C.card, marginBottom: 10, borderWidth: 1, borderColor: C.border },
   holdTrack: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   holdFill: { height: '100%', backgroundColor: C.red + '40' },
   holdTxt: { color: C.white, fontSize: 15, fontWeight: '700', textAlign: 'center', padding: 20, zIndex: 1 },
@@ -971,8 +1033,8 @@ const s = StyleSheet.create({
   blockedBack: { position: 'absolute', bottom: 48, alignSelf: 'center' },
   blockedBackTxt: { color: C.muted, fontSize: 14 },
   // Status dot
-  statusDot: { width: 10, height: 10, borderRadius: 5, marginRight: 12 },
+  statusDot: { width: 8, height: 8, marginRight: 12 },
   // Manage button
-  manageBtn: { backgroundColor: C.cyanDim, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
-  manageTxt: { color: C.cyan, fontSize: 13, fontWeight: '700' },
+  manageBtn: { borderWidth: 1, borderColor: C.border, paddingHorizontal: 12, paddingVertical: 6 },
+  manageTxt: { fontSize: 13, fontWeight: '700' },
 });

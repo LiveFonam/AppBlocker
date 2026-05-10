@@ -90,7 +90,7 @@ export function useAppBlocker() {
       // After they return, prompt for Usage Access too
       Alert.alert(
         'One More Step',
-        'Also enable "Usage Access" for Nova Focus in Settings → Apps → Special app access → Usage access.',
+        'Also enable "Usage Access" for Student Focus in Settings → Apps → Special app access → Usage access.',
         [
           { text: 'Open Settings', onPress: () => Linking.openSettings() },
           { text: 'Later', style: 'cancel' },
