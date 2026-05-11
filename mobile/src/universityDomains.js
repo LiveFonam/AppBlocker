@@ -1,5 +1,16 @@
-const FALLBACK_REGEX = [/\.(edu|ac\.[a-z]{2,}|edu\.[a-z]{2,})$/i];
+import BUNDLED_DOMAINS from './universityDomainsData';
+
 let _domainSet = null;
+
+function checkDomain(set, domain) {
+  if (set.has(domain)) return true;
+  const parts = domain.split('.');
+  if (parts.length > 2) {
+    const parent = parts.slice(1).join('.');
+    if (set.has(parent)) return true;
+  }
+  return false;
+}
 
 export async function isUniversityDomain(domain) {
   if (!_domainSet) {
@@ -14,14 +25,6 @@ export async function isUniversityDomain(domain) {
       _domainSet = new Set();
     }
   }
-  if (_domainSet.size > 0) {
-    if (_domainSet.has(domain)) return true;
-    const parts = domain.split('.');
-    if (parts.length > 2) {
-      const parent = parts.slice(1).join('.');
-      if (_domainSet.has(parent)) return true;
-    }
-    return false;
-  }
-  return FALLBACK_REGEX.some(p => p.test(domain));
+  if (_domainSet.size > 0) return checkDomain(_domainSet, domain);
+  return checkDomain(BUNDLED_DOMAINS, domain);
 }
