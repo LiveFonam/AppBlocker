@@ -240,15 +240,15 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   const slides = [
 
     /* 0 — Welcome */
-    <View key="s0" style={[st.slide, { justifyContent: 'center', alignItems: 'center' }]}>
+    <TouchableOpacity key="s0" activeOpacity={1} onPress={next} style={[st.slide, { justifyContent: 'center', alignItems: 'center' }]}>
       <View style={st.badge}><Text style={st.badgeTxt}>STUDENT FOCUS</Text></View>
       <Text style={[st.bigTitle, { textAlign: 'center' }]}>Take back{'\n'}your time.</Text>
       <Text style={[st.sub, { textAlign: 'center' }]}>The free app blocker for students.</Text>
-    </View>,
+    </TouchableOpacity>,
 
     /* 1 — Permission */
     <View key="s1" style={[st.slide, { backgroundColor: '#050505' }]}>
-      <Text style={st.bigTitle}>To block apps and show your real usage, we need access to your activity data.</Text>
+      <Text style={[st.bigTitle, { fontSize: 24, lineHeight: 32 }]}>To block apps and show your real usage, we need access to your activity data.</Text>
       <View style={st.requiredPill}>
         <Text style={st.requiredPillTxt}>REQUIRED</Text>
       </View>
