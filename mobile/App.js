@@ -334,7 +334,7 @@ function BlockedScreenModal({ visible, blockTitle, endMins, appId = 'unknown', o
           <Text style={s.holdHint}>
             {alreadyUsed
               ? 'No more emergency access for this app today'
-              : `Hold 3 seconds — vibration will be strong${emergencyMins === 5 ? ' (5 min — first app already used 15)' : ''}`}
+              : `Hold 3 seconds - vibration will be strong${emergencyMins === 5 ? ' (5 min, first app already used 15)' : ''}`}
           </Text>
         </View>
 

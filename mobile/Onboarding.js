@@ -87,7 +87,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
 
   useEffect(() => {
     if (step !== 0) return;
-    const t = setTimeout(() => next(), 1200);
+    const t = setTimeout(() => next(), 2500);
     return () => clearTimeout(t);
   }, [step]);
 
@@ -209,7 +209,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
           onPress={finishWithPin}
           disabled={pin.length < 4}
         >
-          <Text style={st.btnTxt}>I have shared it — let's go</Text>
+          <Text style={st.btnTxt}>I have shared it - let's go</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={finishWithPin} style={{ alignSelf: 'center', marginTop: 14 }}>
           <Text style={st.link}>Skip for now</Text>
@@ -222,7 +222,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   const REALITY_DATA = [
     { label: 'You said',          value: guessHours % 1 === 0 ? `${guessHours}h` : `${guessHours.toFixed(1)}h`, sub: 'per day',                                   color: O.white },
     { label: 'Reality',           value: actualHours % 1 === 0 ? `${actualHours}h` : `${actualHours.toFixed(1)}h`, sub: `+${diff.toFixed(1)}h you didn't account for`, color: O.red   },
-    { label: 'Savings potential', value: `${weekHrs}h`,  sub: `per week — ${daysBack} full days per year`,    color: O.green },
+    { label: 'Savings potential', value: `${weekHrs}h`,  sub: `per week - ${daysBack} full days per year`,    color: O.green },
   ];
 
   const BENEFIT_DATA = [
@@ -240,19 +240,18 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   const slides = [
 
     /* 0 — Welcome */
-    <View key="s0" style={[st.slide, { justifyContent: 'flex-start', paddingTop: H * 0.08 }]}>
+    <View key="s0" style={[st.slide, { justifyContent: 'center', alignItems: 'center' }]}>
       <View style={st.badge}><Text style={st.badgeTxt}>STUDENT FOCUS</Text></View>
-      <Text style={st.bigTitle}>Take back{'\n'}your time.</Text>
-      <Text style={st.sub}>The free app blocker for students.</Text>
+      <Text style={[st.bigTitle, { textAlign: 'center' }]}>Take back{'\n'}your time.</Text>
+      <Text style={[st.sub, { textAlign: 'center' }]}>The free app blocker for students.</Text>
     </View>,
 
     /* 1 — Permission */
     <View key="s1" style={[st.slide, { backgroundColor: '#050505' }]}>
-      <View style={st.requiredBanner}>
-        <Text style={st.requiredTxt}>Required — the app cannot function without this</Text>
+      <Text style={st.bigTitle}>To block apps and show your real usage, we need access to your activity data.</Text>
+      <View style={st.requiredPill}>
+        <Text style={st.requiredPillTxt}>REQUIRED</Text>
       </View>
-      <Text style={st.bigTitle}>We need to see{'\n'}what you're using.</Text>
-      <Text style={st.sub}>To block apps and show your real usage, we need access to your activity data.</Text>
       <View style={st.sysSheet}>
         <Text style={st.sheetTitle}>
           This lets us show you exactly where your time is going and block the apps that pull you away from what matters.
@@ -271,9 +270,9 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
     /* 2 — School email */
     <KeyboardAvoidingView key="s2" behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: W }}>
       <ScrollView contentContainerStyle={[st.slide, { justifyContent: 'center' }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <View style={st.badge}><Text style={st.badgeTxt}>STUDENTS ONLY — FREE</Text></View>
+        <View style={st.badge}><Text style={st.badgeTxt}>STUDENTS ONLY - FREE</Text></View>
         <Text style={st.bigTitle}>Sign in with your{'\n'}school email.</Text>
-        <Text style={st.sub}>School accounts only. Always free — no card needed.</Text>
+        <Text style={st.sub}>School accounts only. Always free, no card needed.</Text>
         <TextInput
           style={[st.input, emailErr ? { borderColor: O.red } : null]}
           placeholder="you@mcgill.ca  or  you@school.edu"
@@ -335,7 +334,6 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
           onChangeText={v => { setOtpCode(v.replace(/\D/g, '').slice(0, 6)); setOtpErr(''); }}
           keyboardType="number-pad"
           maxLength={6}
-          autoFocus
         />
         {!!otpErr && <Text style={st.errTxt}>{otpErr}</Text>}
         <TouchableOpacity
@@ -408,7 +406,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
     /* 5 — Benefits (horizontal cards) */
     <View key="s5" style={st.slide}>
       <Text style={[st.bigTitle, { textAlign: 'center' }]}>What changing this{'\n'}actually looks like.</Text>
-      <Text style={[st.sub, { textAlign: 'center', marginBottom: 16 }]}>Users report after 30 days — swipe</Text>
+      <Text style={[st.sub, { textAlign: 'center', marginBottom: 16 }]}>Users report after 30 days - swipe</Text>
       <FlatList
         horizontal
         snapToInterval={W * 0.65 + 16}
@@ -472,7 +470,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       <Text style={st.bigTitle}>Apps to take{'\n'}control of.</Text>
       <Text style={st.sub}>
         {Platform.OS === 'android'
-          ? 'Based on your usage — we suggest reducing these by at least 30%.'
+          ? 'Based on your usage, we suggest reducing these by at least 30%.'
           : 'Select the apps you spend the most time on.'}
       </Text>
       <View style={{ width: '100%', marginTop: 20 }}>
@@ -574,7 +572,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       </ScrollView>
 
       <View style={st.navBar}>
-        {step > 1 ? (
+        {step > 2 ? (
           <TouchableOpacity onPress={prev} style={st.backBtn}>
             <Text style={st.backTxt}>Back</Text>
           </TouchableOpacity>
@@ -614,12 +612,12 @@ const st = StyleSheet.create({
   stepNum: { fontSize: 11, fontWeight: '700', color: O.muted, width: 36, marginTop: 2, letterSpacing: 1 },
   stepTitle: { fontSize: 16, fontWeight: '600', color: O.white, marginBottom: 3 },
   stepDesc: { fontSize: 14, color: O.muted, lineHeight: 20 },
-  requiredBanner: {
+  requiredPill: {
     backgroundColor: '#1a1000', borderWidth: 1, borderColor: '#ff9500',
-    paddingHorizontal: 14, paddingVertical: 8,
-    marginBottom: 28, alignSelf: 'stretch',
+    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
+    alignSelf: 'flex-start', marginTop: 12, marginBottom: 24,
   },
-  requiredTxt: { color: '#ff9500', fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  requiredPillTxt: { color: '#ff9500', fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
   sysSheet: {
     backgroundColor: O.card, padding: 20, marginTop: 24,
     borderWidth: 1, borderColor: O.border, borderRadius: 10,
