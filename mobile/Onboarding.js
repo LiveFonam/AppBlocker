@@ -296,7 +296,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
             : <Text style={st.btnTxt}>Continue</Text>}
         </TouchableOpacity>
         <Text style={st.mutedNote}>
-          A 6-digit code will be sent to your inbox to verify you own this address.
+          A 6-digit code will be sent to your inbox to verify you own this email address.
         </Text>
         <Text style={[st.mutedNote, { marginTop: 20 }]}>
           By continuing, you agree to our{' '}
