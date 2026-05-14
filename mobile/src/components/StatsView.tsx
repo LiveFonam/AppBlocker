@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons'
 import { useMemo, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 import type { PersistedState } from '../types'
 import { appBrandName, cardRadius, colors, fonts, space } from '../theme'
 import {
   awakeTimePercent,
+  dateKey,
   focusTrendPercent,
   focusTrendPath,
   formatAvgScreenHeading,
@@ -19,7 +20,7 @@ import {
   weekOverWeekReductionLabel,
 } from '../utils/stats'
 
-type AnalyticsTab = 'week' | 'month' | 'lifetime'
+type AnalyticsTab = 'day' | 'week' | 'month' | 'lifetime'
 
 type Props = {
   data: PersistedState
@@ -50,6 +51,12 @@ export function StatsView({ data, onOpenSettings, bottomInset }: Props) {
   const sessions = sortSessionsRecent(data.sessions).slice(0, 12)
 
   const chartBars = useMemo(() => {
+    if (analyticsTab === 'day') {
+      const todayKey = dateKey(new Date())
+      const entry = data.dailyUsage.find((x) => x.date === todayKey)
+      const mins = entry?.minutes ?? fallback
+      return [{ key: 'today', label: 'Today', minutes: mins }]
+    }
     if (analyticsTab === 'week') return last7DaysUsage(data.dailyUsage, fallback)
     if (analyticsTab === 'month') return lastFourWeekTotals(data.dailyUsage, fallback)
     return lastNWeekTotals(data.dailyUsage, 12, fallback)
@@ -57,6 +64,7 @@ export function StatsView({ data, onOpenSettings, bottomInset }: Props) {
 
   const avgDailyScreen = useMemo(() => {
     const sum = chartBars.reduce((s, b) => s + b.minutes, 0)
+    if (analyticsTab === 'day') return sum
     if (analyticsTab === 'week') return sum / 7
     if (analyticsTab === 'month') return sum / 28
     return sum / 84
@@ -66,11 +74,21 @@ export function StatsView({ data, onOpenSettings, bottomInset }: Props) {
   const awakePct = awakeTimePercent(avgDailyScreen)
 
   const chartFooter =
-    analyticsTab === 'week'
-      ? 'Last 7 Days'
-      : analyticsTab === 'month'
-        ? 'Last 4 Weeks'
-        : 'Last 12 Weeks'
+    analyticsTab === 'day'
+      ? 'Today'
+      : analyticsTab === 'week'
+        ? 'Last 7 Days'
+        : analyticsTab === 'month'
+          ? 'Last 4 Weeks'
+          : 'Last 12 Weeks'
+
+  const onShare = async () => {
+    try {
+      await Share.share({
+        message: "Check out Student Focus — a free app blocker for students. https://livefonam.github.io/AppBlocker/",
+      })
+    } catch (_) {}
+  }
 
   return (
     <ScrollView
@@ -92,20 +110,20 @@ export function StatsView({ data, onOpenSettings, bottomInset }: Props) {
           </View>
         </View>
         <View style={styles.profileActions}>
-          <Pressable onPress={onOpenSettings} hitSlop={10} style={styles.iconHit}>
-            <Ionicons name="settings-outline" size={22} color={colors.muted2} />
+          <Pressable onPress={onShare} hitSlop={12} style={styles.iconHit}>
+            <Ionicons name="share-outline" size={28} color={colors.text} />
           </Pressable>
-          <Pressable hitSlop={10} style={styles.iconHit}>
-            <Ionicons name="share-outline" size={20} color={colors.muted3} />
+          <Pressable onPress={onOpenSettings} hitSlop={12} style={styles.iconHit}>
+            <Ionicons name="settings-outline" size={30} color={colors.text} />
           </Pressable>
         </View>
       </View>
 
       <View style={[styles.analyticsCard, styles.minCard]}>
         <View style={styles.analyticsTabs}>
-          {(['week', 'month', 'lifetime'] as const).map((t) => {
+          {(['day', 'week', 'month', 'lifetime'] as const).map((t) => {
             const on = analyticsTab === t
-            const label = t === 'week' ? 'Week' : t === 'month' ? 'Month' : 'Lifetime'
+            const label = t === 'day' ? 'Day' : t === 'week' ? 'Week' : t === 'month' ? 'Month' : 'Lifetime'
             return (
               <Pressable
                 key={t}

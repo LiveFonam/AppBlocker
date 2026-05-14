@@ -1,19 +1,17 @@
 import { Ionicons } from '@expo/vector-icons'
 import { useMemo, useRef, useState } from 'react'
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Animated, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 import { appBrandName, cardRadius, colors, fonts, space } from '../theme'
 import type { DayUsage, WorkSchedule } from '../types'
 import {
   awakeTimePercent,
   consistencyLabel,
-  focusHoursMilestone,
+  dateKey,
   formatAvgScreenHeading,
   last7DaysUsage,
   lastFourWeekTotals,
   lastNWeekTotals,
-  rankLabel,
-  topPercentLabel,
   usageBarsToPaths,
 } from '../utils/stats'
 import { WorkTimeScheduleModal } from './WorkTimeScheduleModal'
@@ -28,7 +26,7 @@ type Active = {
 
 const STREAK_TARGET_DAYS = 30
 
-type AnalyticsTab = 'week' | 'month' | 'lifetime'
+type AnalyticsTab = 'day' | 'week' | 'month' | 'lifetime'
 
 type Props = {
   dailyUsage: DayUsage[]
@@ -115,13 +113,15 @@ export function HomeView({
   const [workTimeOpen, setWorkTimeOpen] = useState(false)
   const [analyticsTab, setAnalyticsTab] = useState<AnalyticsTab>('week')
   const scrollY = useRef(new Animated.Value(0)).current
-  const rank = rankLabel(currentStreak)
-  const topPct = topPercentLabel(currentStreak)
   const focusHours = Math.floor(totalFocusMinutes / 60)
-  const hoursMilestone = focusHoursMilestone(focusHours)
-  const pagesEstimate = Math.max(12, Math.round(weeklyFocusMinutes / 2))
 
   const chartBars = useMemo(() => {
+    if (analyticsTab === 'day') {
+      const today = dateKey(new Date())
+      const todayEntry = dailyUsage.find((x) => x.date === today)
+      const mins = todayEntry?.minutes ?? fallbackScreenMinutes
+      return [{ key: 'today', label: 'Today', minutes: mins }]
+    }
     if (analyticsTab === 'week') return last7DaysUsage(dailyUsage, fallbackScreenMinutes)
     if (analyticsTab === 'month') return lastFourWeekTotals(dailyUsage, fallbackScreenMinutes)
     return lastNWeekTotals(dailyUsage, 12, fallbackScreenMinutes)
@@ -129,20 +129,31 @@ export function HomeView({
 
   const avgDailyScreen = useMemo(() => {
     const sum = chartBars.reduce((s, b) => s + b.minutes, 0)
+    if (analyticsTab === 'day') return sum
     if (analyticsTab === 'week') return sum / 7
     if (analyticsTab === 'month') return sum / 28
     return sum / 84
   }, [chartBars, analyticsTab])
 
+  const onShare = async () => {
+    try {
+      await Share.share({
+        message: "Check out Student Focus — a free app blocker for students. https://livefonam.github.io/AppBlocker/",
+      })
+    } catch (_) {}
+  }
+
   const { lineD, areaD } = useMemo(() => usageBarsToPaths(chartBars), [chartBars])
   const awakePct = awakeTimePercent(avgDailyScreen)
 
   const chartFooter =
-    analyticsTab === 'week'
-      ? 'Last 7 Days'
-      : analyticsTab === 'month'
-        ? 'Last 4 Weeks'
-        : 'Last 12 Weeks'
+    analyticsTab === 'day'
+      ? 'Today'
+      : analyticsTab === 'week'
+        ? 'Last 7 Days'
+        : analyticsTab === 'month'
+          ? 'Last 4 Weeks'
+          : 'Last 12 Weeks'
 
   const onScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
     useNativeDriver: false,
@@ -187,17 +198,14 @@ export function HomeView({
               <Text style={styles.displayName} numberOfLines={1}>
                 {appBrandName}
               </Text>
-              <Text style={styles.profileMeta} numberOfLines={1}>
-                {topPct} · {rank.title}
-              </Text>
             </View>
           </View>
           <View style={styles.profileActions}>
-            <Pressable onPress={onOpenSettings} hitSlop={10} style={styles.iconHit}>
-              <Ionicons name="settings-outline" size={22} color={colors.muted2} />
+            <Pressable onPress={onShare} hitSlop={12} style={styles.iconHitLarge}>
+              <Ionicons name="share-outline" size={28} color={colors.text} />
             </Pressable>
-            <Pressable hitSlop={10} style={styles.iconHit}>
-              <Ionicons name="share-outline" size={20} color={colors.muted3} />
+            <Pressable onPress={onOpenSettings} hitSlop={12} style={styles.iconHitLarge}>
+              <Ionicons name="settings-outline" size={30} color={colors.text} />
             </Pressable>
           </View>
         </View>
@@ -229,40 +237,20 @@ export function HomeView({
             <Text style={styles.statKicker}>Streak</Text>
             <Text style={styles.statFigure}>{String(currentStreak).padStart(2, '0')}</Text>
             <Text style={styles.statUnit}>days</Text>
-            <View style={styles.statDivider} />
-            <Text style={styles.statTierName}>{rank.title}</Text>
-            <MiniProgress
-              ratio={currentStreak / STREAK_TARGET_DAYS}
-              fill="rgba(255,255,255,0.45)"
-              track={colors.outline}
-            />
-            <Text style={styles.statTierMeta}>
-              {currentStreak}/{STREAK_TARGET_DAYS} days
-            </Text>
           </View>
 
           <View style={[styles.statCard, styles.minCard]}>
             <Text style={styles.statKicker}>Focus</Text>
             <Text style={styles.statFigure}>{focusHours}</Text>
             <Text style={styles.statUnit}>hours</Text>
-            <View style={styles.statDivider} />
-            <Text style={styles.statTierName}>{hoursMilestone.label}</Text>
-            <MiniProgress
-              ratio={hoursMilestone.current / hoursMilestone.target}
-              fill="rgba(255,255,255,0.45)"
-              track={colors.outline}
-            />
-            <Text style={styles.statTierMeta}>
-              {hoursMilestone.current}/{hoursMilestone.target} hours
-            </Text>
           </View>
         </View>
 
         <View style={[styles.analyticsCard, styles.minCard]}>
           <View style={styles.analyticsTabs}>
-            {(['week', 'month', 'lifetime'] as const).map((t) => {
+            {(['day', 'week', 'month', 'lifetime'] as const).map((t) => {
               const on = analyticsTab === t
-              const label = t === 'week' ? 'Week' : t === 'month' ? 'Month' : 'Lifetime'
+              const label = t === 'day' ? 'Day' : t === 'week' ? 'Week' : t === 'month' ? 'Month' : 'Lifetime'
               return (
                 <Pressable
                   key={t}
@@ -314,12 +302,7 @@ export function HomeView({
         </View>
 
         <View style={[styles.heroCard, styles.minCard]}>
-          <Text style={styles.heroLine}>
-            <Text style={styles.heroEm}>You could've read </Text>
-            <Text style={styles.heroBold}>{pagesEstimate} pages</Text>
-            <Text style={styles.heroEm}> of a book</Text>
-          </Text>
-          <Text style={styles.heroSub}>This week from your focus minutes — {consistencyLabel(currentStreak)} consistency.</Text>
+          <Text style={styles.heroSub}>{consistencyLabel(currentStreak)} consistency this week.</Text>
           <Text style={styles.heroFoot}>
             {daysInApp} {daysInApp === 1 ? 'day' : 'days'} in app
           </Text>
@@ -424,9 +407,11 @@ const styles = StyleSheet.create({
   profileActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
+    marginRight: -8,
   },
   iconHit: { padding: 8 },
+  iconHitLarge: { padding: 12 },
   statRow: {
     flexDirection: 'row',
     gap: 12,

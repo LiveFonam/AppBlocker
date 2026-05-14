@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import {
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -160,7 +161,7 @@ export function BlockView({
         <View style={[styles.card, styles.minCard]}>
           <Text style={styles.cardKicker}>Focus session</Text>
           <Text style={styles.cardBody}>
-            While a timer runs, the apps you pick in the list below are what you intend to avoid—real
+            While a timer runs, the apps you pick in the list below are what you intend to avoid. Real
             limits still use Screen Time or Focus on your iPhone.
           </Text>
           <Text style={styles.metaLine}>
@@ -302,6 +303,10 @@ export function BlockView({
         transparent
         onRequestClose={() => setManageOpen(false)}
       >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
         <Pressable style={styles.sheetBackdrop} onPress={() => setManageOpen(false)}>
           <Pressable style={styles.sheetCard} onPress={(e) => e.stopPropagation()}>
             <View style={styles.sheetHeader}>
@@ -373,6 +378,7 @@ export function BlockView({
             )}
           </Pressable>
         </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -381,6 +387,10 @@ export function BlockView({
         transparent
         onRequestClose={() => setCreateOpen(false)}
       >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
         <Pressable style={styles.modalBackdrop} onPress={() => setCreateOpen(false)}>
           <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>New focus session</Text>
@@ -414,6 +424,7 @@ export function BlockView({
             </View>
           </Pressable>
         </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   )
@@ -653,8 +664,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   switchOn: {
-    borderColor: colors.text,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderColor: '#30d158',
+    backgroundColor: 'rgba(48, 209, 88, 0.45)',
   },
   switchOff: {
     borderColor: colors.outline,

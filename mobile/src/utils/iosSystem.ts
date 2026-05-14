@@ -44,7 +44,7 @@ export async function openScreenTimeSettings(): Promise<void> {
 
   Alert.alert(
     'Screen Time',
-    'If Settings did not open to Screen Time: open the Settings app, tap Screen Time, then App Limits or Downtime to block apps. Apple only allows blocking from there or Focus modes—third-party apps cannot read your Screen Time data.',
+    'If Settings did not open to Screen Time: open the Settings app, tap Screen Time, then App Limits or Downtime to block apps. Apple only allows blocking from there or Focus modes. Third-party apps cannot read your Screen Time data.',
   )
 }
 

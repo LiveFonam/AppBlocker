@@ -15,7 +15,7 @@ let Notifications = null;
 try { Notifications = require('expo-notifications'); } catch (_) {}
 
 const { width: W, height: H } = Dimensions.get('window');
-const TOTAL = 15;
+const TOTAL = 17;
 
 const O = {
   bg:     '#000000',
@@ -29,7 +29,7 @@ const O = {
 };
 
 const GUESS_VALUES = Array.from({ length: 32 }, (_, i) => +((i + 1) * 0.5).toFixed(1));
-const ITEM_W = Math.round(W / 5);
+const ITEM_W = Math.round(W / 4);
 const SIDE_PAD = (W - ITEM_W) / 2;
 
 function supportsScreenTime() {
@@ -89,7 +89,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   const progressAnim = useRef(new Animated.Value(1 / TOTAL)).current;
 
   const [step,         setStep]         = useState(0);
-  const [guessIdx,     setGuessIdx]     = useState(3);
+  const [guessIdx,     setGuessIdx]     = useState(15);
   const [selectedApps, setSelectedApps] = useState([]);
   const [blockName,    setBlockName]    = useState('');
   const [startMins,    setStartMins]    = useState(540);
@@ -104,25 +104,26 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   const resendTimerRef = useRef(null);
   const cooldownEndsAtRef = useRef(0);
   const lastHapticIdxRef = useRef(-1);
-  const scrollX = useRef(new Animated.Value(GUESS_VALUES.indexOf(GUESS_VALUES[3] || GUESS_VALUES[0]) * ITEM_W)).current;
+  const scrollX = useRef(new Animated.Value(15 * ITEM_W)).current;
   const rcAnim0 = useRef(new Animated.Value(0)).current;
   const rcAnim1 = useRef(new Animated.Value(0)).current;
   const [blockingMode, setBlockingMode] = useState('strict');
-  const [suggestedApps,setSuggestedApps]= useState(IOS_APP_SCHEMES);
-  const [pinSlide,     setPinSlide]     = useState(false);
-  const [pin,          setPin]          = useState('');
+  const [suggestedApps,setSuggestedApps]= useState([]);
+  const [appsScanned,  setAppsScanned]  = useState(false);
   const [enforcementTypes, setEnforcementTypes] = useState([]);
   const [sameForAll,   setSameForAll]   = useState(true);
   const [dailyLimitMins, setDailyLimitMins] = useState(60);
   const [overrideMethod, setOverrideMethod] = useState(null);
   const [startInput,   setStartInput]   = useState('');
   const [endInput,     setEndInput]     = useState('');
-  const [holdProgress, setHoldProgress] = useState(0);
+  const [perAppConfig, setPerAppConfig] = useState({});
+  const [expandedAppId, setExpandedAppId] = useState(null);
 
   const guessHours = GUESS_VALUES[guessIdx];
   const actualHours = +(guessHours * 1.4).toFixed(1);
   const diff        = +(actualHours - guessHours).toFixed(1);
   const cut         = +Math.max(0.5, actualHours - 1.5).toFixed(1);
+  const studyHours  = +(diff / 2).toFixed(1);
   const weekHrs     = (cut * 7).toFixed(1);
   const daysBack    = Math.round((cut * 365) / 24);
 
@@ -183,7 +184,8 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
         )
       ).then(results => {
         const installed = results.filter(Boolean);
-        if (installed.length > 0) setSuggestedApps(installed);
+        setSuggestedApps(installed);
+        setAppsScanned(true);
       });
     }
   }, [step]);
@@ -198,10 +200,11 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
     }).start();
   };
   const shouldSkip = (idx) => {
-    if (idx === 10 && selectedApps.length <= 1) return true;
-    if (idx === 11 && !enforcementTypes.includes('block')) return true;
-    if (idx === 12 && !enforcementTypes.includes('limit')) return true;
-    if (idx === 13 && !enforcementTypes.includes('limit')) return true;
+    if (idx === 11 && selectedApps.length <= 1) return true;
+    if (idx === 12 && (!enforcementTypes.includes('block') || !sameForAll)) return true;
+    if (idx === 13 && (!enforcementTypes.includes('limit') || !sameForAll)) return true;
+    if (idx === 14 && (sameForAll || enforcementTypes.length === 0)) return true;
+    if (idx === 15 && !enforcementTypes.includes('limit')) return true;
     return false;
   };
   const nextValid = (from) => {
@@ -273,7 +276,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
     next();
   };
 
-  const finishWithPin = async () => {
+  const finishOnboarding = async () => {
     try {
       await AsyncStorage.multiSet([
         ['@nova_onboarding_done', 'true'],
@@ -283,61 +286,16 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
         ['@nova_same_for_all',    sameForAll ? 'true' : 'false'],
         ['@nova_daily_limit',     String(dailyLimitMins)],
         ['@nova_override_method', overrideMethod || 'self'],
-        ...(pin.length === 4 ? [['@nova_pin', pin]] : []),
+        ['@nova_per_app_config',  JSON.stringify(perAppConfig)],
       ]);
     } catch (_) {}
     onComplete({
       blockName: blockName || 'Focus Block',
       selectedApps, startMins, endMins, blockingMode, email,
       enforcementTypes, sameForAll, dailyLimitMins, overrideMethod: overrideMethod || 'self',
+      perAppConfig,
     });
   };
-
-  // ── PIN slide ──────────────────────────────────────────────────────────────
-  if (pinSlide) {
-    return (
-      <View style={[st.container, { justifyContent: 'flex-end', paddingBottom: 48 }]}>
-        <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 32 }}>
-          <Text style={st.bigTitle}>Set an accountability code.</Text>
-          <Text style={[st.sub, { marginBottom: 40 }]}>
-            Give this 4-digit code to a trusted person.{'\n\n'}
-            You will need it to change any block settings.{'\n'}
-            You will not see it again after this screen.
-          </Text>
-          <View style={st.pinDots}>
-            {[0,1,2,3].map(i => (
-              <View key={i} style={[st.dot, pin.length > i && st.dotFilled]} />
-            ))}
-          </View>
-        </View>
-        <View style={st.numPad}>
-          {['1','2','3','4','5','6','7','8','9','','0','<'].map((k, i) => (
-            <TouchableOpacity
-              key={i}
-              style={[st.numKey, k === '' && { opacity: 0 }]}
-              disabled={k === ''}
-              onPress={() => {
-                if (k === '<') setPin(p => p.slice(0, -1));
-                else if (pin.length < 4) setPin(p => p + k);
-              }}
-            >
-              <Text style={st.numKeyTxt}>{k}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <TouchableOpacity
-          style={[st.btn, { marginHorizontal: 32, marginTop: 16, opacity: pin.length < 4 ? 0.3 : 1 }]}
-          onPress={finishWithPin}
-          disabled={pin.length < 4}
-        >
-          <Text style={st.btnTxt}>I have shared it - let's go</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={finishWithPin} style={{ alignSelf: 'center', marginTop: 14 }}>
-          <Text style={st.link}>Skip for now</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
 
   // ── Slide data ─────────────────────────────────────────────────────────────
   const REALITY_DATA = [
@@ -346,14 +304,14 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   ];
 
   const BENEFIT_DATA = [
-    { title: 'Study Time', stat: `+${cut.toFixed(1)}h`, sub: 'per day to study'                      },
-    { title: 'Sleep',      stat: '+47 min',             sub: 'nightly improvement reported'          },
-    { title: 'Control',    stat: '83%',                 sub: 'feel more in control after 30 days'    },
+    { title: 'Study Time', stat: `+${studyHours.toFixed(1)}h`, sub: 'per day to study'                      },
+    { title: 'Sleep',      stat: '+47 min',                    sub: 'nightly improvement reported'          },
+    { title: 'Control',    stat: '83%',                        sub: 'feel more in control after 30 days'    },
   ];
 
   // Slides that handle their own CTA buttons (no bottom nav Next button)
-  // 0=welcome, 1=permission, 2=email, 3=OTP, 7=notifs(auto), 8=apps, 10=sameForAll, 11=time block, 14=override
-  const SELF_NAV = new Set([0, 1, 2, 3, 7, 8, 10, 11, 14]);
+  // 0=welcome, 1=permission, 2=email, 3=OTP, 7=notifs(auto), 8=screentime, 9=apps, 11=sameForAll, 12=time block, 14=per-app, 16=override
+  const SELF_NAV = new Set([0, 1, 2, 3, 7, 8, 9, 11, 12, 14, 16]);
 
   // ── Slides ─────────────────────────────────────────────────────────────────
   const slides = [
@@ -567,7 +525,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
         {BENEFIT_DATA.map((item, i) => (
           <View key={i} style={[st.hCard, { width: '48%', marginBottom: 12, alignItems: 'center' }]}>
             <Text style={[st.hCardLabel, { marginBottom: 8, textAlign: 'center' }]}>{item.title}</Text>
-            <Text style={[st.hCardValue, { color: O.white, fontSize: 36 }]}>{item.stat}</Text>
+            <Text style={[st.hCardValue, { color: O.white, fontSize: 28 }]}>{item.stat}</Text>
             <Text style={[st.hCardSub, { textAlign: 'center' }]}>{item.sub}</Text>
           </View>
         ))}
@@ -577,7 +535,31 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
     /* 6 — Notifications (auto-triggers real iOS popup via useEffect, no UI needed) */
     <View key="s6" style={st.slide} />,
 
-    /* 8 — App suggestions */
+    /* 8 — Screen Time auth */
+    <View key="s_screentime" style={st.slide}>
+      <Text style={st.bigTitle}>Read your{'\n'}screen time?</Text>
+      <Text style={st.sub}>
+        Granting access lets us show your real usage and suggest the apps you actually spend the most time on. We never upload this data anywhere.
+      </Text>
+      <TouchableOpacity
+        style={[st.btn, { marginTop: 32 }]}
+        onPress={async () => { try { await requestAuth?.(); } catch (_) {} next(); }}
+      >
+        <Text style={st.btnTxt}>Allow access</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={next} style={{ alignSelf: 'center', marginTop: 16 }}>
+        <Text style={st.link}>Skip for now</Text>
+      </TouchableOpacity>
+      {Platform.OS === 'ios' && !supportsScreenTime() && (
+        <View style={[st.infoBox, { marginTop: 20 }]}>
+          <Text style={st.infoTxt}>
+            Real Screen Time data requires iOS 17.4+. You can connect it later in Settings after updating.
+          </Text>
+        </View>
+      )}
+    </View>,
+
+    /* 9 — App suggestions */
     <ScrollView key="s_apps" style={{ width: W, backgroundColor: '#050505' }} contentContainerStyle={[st.slide, { justifyContent: 'flex-start', paddingTop: H * 0.08, paddingBottom: 48 }]} showsVerticalScrollIndicator={false}>
       <Text style={st.bigTitle}>Apps to take{'\n'}control of.</Text>
       <Text style={st.sub}>
@@ -585,8 +567,15 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
           ? 'Based on your usage, we suggest reducing these.'
           : 'Select the apps you spend the most time on.'}
       </Text>
+      {Platform.OS === 'ios' && appsScanned && suggestedApps.length === 0 && (
+        <View style={[st.infoBox, { marginTop: 16 }]}>
+          <Text style={st.infoTxt}>
+            We couldn't auto-detect installed apps. Pick from the list below — only the ones you actually have.
+          </Text>
+        </View>
+      )}
       <View style={{ width: '100%', marginTop: 20 }}>
-        {suggestedApps.map(app => {
+        {(suggestedApps.length === 0 && Platform.OS === 'ios' && appsScanned ? IOS_APP_SCHEMES : suggestedApps).map(app => {
           const sel = selectedApps.includes(app.id);
           return (
             <TouchableOpacity key={app.id} style={[st.appRow, sel && st.appRowOn]} onPress={() =>
@@ -641,24 +630,26 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
     </View>,
 
     /* 10 — Same for all apps? */
-    <View key="s_sameforall" style={st.slide}>
-      <Text style={st.bigTitle}>One setting{'\n'}for all of them?</Text>
-      <Text style={st.sub}>You selected {selectedApps.length} apps. Apply the same limit/window to all, or customize per app?</Text>
-      <TouchableOpacity style={[st.btn, { marginTop: 32 }]} onPress={() => { setSameForAll(true); next(); }}>
-        <Text style={st.btnTxt}>Same for all</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[st.btn, { marginTop: 12, backgroundColor: 'transparent', borderWidth: 1, borderColor: O.border }]}
-        onPress={() => { setSameForAll(false); next(); }}
-      >
-        <Text style={[st.btnTxt, { color: O.white }]}>Customize per app</Text>
-      </TouchableOpacity>
-      {!sameForAll && (
-        <Text style={[st.mutedNote, { marginTop: 16 }]}>
-          Per-app customization is coming in the next update. For now we'll start with the same settings — you can adjust each one from the main app.
-        </Text>
-      )}
-    </View>,
+    (() => {
+      const hasLimit = enforcementTypes.includes('limit');
+      const hasBlock = enforcementTypes.includes('block');
+      const settingWord = hasLimit && hasBlock ? 'daily limit and time block' : hasLimit ? 'daily limit' : 'time block';
+      return (
+        <View key="s_sameforall" style={st.slide}>
+          <Text style={st.bigTitle}>Same {settingWord}{'\n'}for all of them?</Text>
+          <Text style={st.sub}>You selected {selectedApps.length} apps. Apply the same {settingWord} to all, or set each one separately?</Text>
+          <TouchableOpacity style={[st.btn, { marginTop: 32 }]} onPress={() => { setSameForAll(true); next(); }}>
+            <Text style={st.btnTxt}>Same for all</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[st.btn, { marginTop: 12, backgroundColor: 'transparent', borderWidth: 1, borderColor: O.border }]}
+            onPress={() => { setSameForAll(false); next(); }}
+          >
+            <Text style={[st.btnTxt, { color: O.white }]}>Customize per app</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    })(),
 
     /* 11 — Set time block (name + editable time window) */
     <ScrollView key="s_block" style={{ width: W }} contentContainerStyle={[st.slide, { paddingBottom: 48 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -757,7 +748,79 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       </View>
     </View>,
 
-    /* 13 — Strict / Taper (only if Time Limit selected) */
+    /* 14 — Per-app customization */
+    <ScrollView key="s_perapp" style={{ width: W }} contentContainerStyle={[st.slide, { paddingBottom: 48 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <Text style={st.bigTitle}>Customize{'\n'}each app.</Text>
+      <Text style={st.sub}>Tap an app to set its own {enforcementTypes.includes('block') && enforcementTypes.includes('limit') ? 'time block and daily limit' : enforcementTypes.includes('block') ? 'time block' : 'daily limit'}.</Text>
+      <View style={{ marginTop: 20 }}>
+        {selectedApps.map(appId => {
+          const cfg = perAppConfig[appId] || { startMins, endMins, dailyLimitMins };
+          const expanded = expandedAppId === appId;
+          const appName = (suggestedApps.find(a => a.id === appId)?.name) || (IOS_APP_SCHEMES.find(a => a.id === appId)?.name) || appId;
+          const summary = [
+            enforcementTypes.includes('block') ? `${tStr(cfg.startMins)} – ${tStr(cfg.endMins)}` : null,
+            enforcementTypes.includes('limit') ? `${cfg.dailyLimitMins} min/day` : null,
+          ].filter(Boolean).join(' · ');
+          return (
+            <View key={appId} style={[st.modeCard, { marginBottom: 12, padding: 0 }]}>
+              <TouchableOpacity onPress={() => setExpandedAppId(expanded ? null : appId)} style={{ padding: 16 }}>
+                <Text style={[st.modeTitle, { color: O.white, marginBottom: 4 }]}>{appName}</Text>
+                <Text style={st.modeSub}>{summary || 'Tap to configure'}</Text>
+              </TouchableOpacity>
+              {expanded && (
+                <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+                  {enforcementTypes.includes('block') && (
+                    <View style={{ marginTop: 8 }}>
+                      <Text style={st.sectionLbl}>TIME WINDOW</Text>
+                      <View style={[st.timeRow, { marginTop: 8 }]}>
+                        <View style={[st.timeBox, { flex: 1 }]}>
+                          <TouchableOpacity onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, startMins: Math.max(0, cfg.startMins - 15) } }))}><Text style={st.timeAdj}>-</Text></TouchableOpacity>
+                          <Text style={st.timeTxt}>{tStr(cfg.startMins)}</Text>
+                          <TouchableOpacity onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, startMins: Math.min(1425, cfg.startMins + 15) } }))}><Text style={st.timeAdj}>+</Text></TouchableOpacity>
+                        </View>
+                        <Text style={st.timeSep}>to</Text>
+                        <View style={[st.timeBox, { flex: 1 }]}>
+                          <TouchableOpacity onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, endMins: Math.max(15, cfg.endMins - 15) } }))}><Text style={st.timeAdj}>-</Text></TouchableOpacity>
+                          <Text style={st.timeTxt}>{tStr(cfg.endMins)}</Text>
+                          <TouchableOpacity onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, endMins: Math.min(1439, cfg.endMins + 15) } }))}><Text style={st.timeAdj}>+</Text></TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                  {enforcementTypes.includes('limit') && (
+                    <View style={{ marginTop: 16 }}>
+                      <Text style={st.sectionLbl}>DAILY LIMIT</Text>
+                      <View style={{ alignItems: 'center', marginTop: 8 }}>
+                        <Text style={{ color: O.white, fontSize: 36, fontWeight: '700' }}>{cfg.dailyLimitMins} min</Text>
+                      </View>
+                      <View style={[st.timeRow, { marginTop: 8, justifyContent: 'center' }]}>
+                        <TouchableOpacity style={st.limitAdjBtn} onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, dailyLimitMins: Math.max(5, cfg.dailyLimitMins - 15) } }))}>
+                          <Text style={st.limitAdjTxt}>-15</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={st.limitAdjBtn} onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, dailyLimitMins: Math.max(5, cfg.dailyLimitMins - 5) } }))}>
+                          <Text style={st.limitAdjTxt}>-5</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={st.limitAdjBtn} onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, dailyLimitMins: Math.min(480, cfg.dailyLimitMins + 5) } }))}>
+                          <Text style={st.limitAdjTxt}>+5</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={st.limitAdjBtn} onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, dailyLimitMins: Math.min(480, cfg.dailyLimitMins + 15) } }))}>
+                          <Text style={st.limitAdjTxt}>+15</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </View>
+      <TouchableOpacity style={[st.btn, { marginTop: 16 }]} onPress={next}>
+        <Text style={st.btnTxt}>Continue</Text>
+      </TouchableOpacity>
+    </ScrollView>,
+
+    /* 15 — Strict / Taper (only if Time Limit selected) */
     <View key="s_mode" style={st.slide}>
       <Text style={st.bigTitle}>Strict or gradual?</Text>
       <Text style={st.sub}>How you want the daily limit enforced.</Text>
@@ -796,10 +859,10 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       </TouchableOpacity>
       <TouchableOpacity
         style={[st.btn, { marginTop: 28, opacity: overrideMethod ? 1 : 0.4 }]}
-        onPress={() => setPinSlide(true)}
+        onPress={finishOnboarding}
         disabled={!overrideMethod}
       >
-        <Text style={st.btnTxt}>Continue to final step</Text>
+        <Text style={st.btnTxt}>Done — let's go</Text>
       </TouchableOpacity>
     </ScrollView>,
   ];
@@ -831,7 +894,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
         ) : <View style={{ width: 60 }} />}
 
         {!SELF_NAV.has(step) ? (() => {
-          const nextDisabled = (step === 9 && enforcementTypes.length === 0) || otpSending;
+          const nextDisabled = (step === 10 && enforcementTypes.length === 0) || otpSending;
           return (
             <TouchableOpacity
               onPress={step === 2 ? validateEmail : next}
@@ -903,7 +966,7 @@ const st = StyleSheet.create({
     borderRadius: 8, padding: 12, marginTop: 8,
   },
   infoTxt: { color: O.muted, fontSize: 13, lineHeight: 19, textAlign: 'center' },
-  scrollerBig: { fontSize: 88, fontWeight: '700', color: O.white },
+  scrollerBig: { fontSize: 60, fontWeight: '700', color: O.white },
   scrollerUnit: { fontSize: 20, color: O.muted, marginTop: -8 },
   swipeHint: { color: O.muted, fontSize: 13, textAlign: 'center', marginTop: 16 },
   hCard: {

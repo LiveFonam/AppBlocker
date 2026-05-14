@@ -17,7 +17,7 @@ export const space = {
 }
 
 /** Fixed header title — never derived from onboarding goals. */
-export const appBrandName = 'Austerity'
+export const appBrandName = 'Student Focus'
 
 export const cardRadius = 16
 
