@@ -5,62 +5,165 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Privacy Policy - Student Focus</title>
   <style>
-    body { font-family: -apple-system, sans-serif; background: #080808; color: #e0e0e0; max-width: 720px; margin: 60px auto; padding: 0 24px 80px; line-height: 1.7; }
+    body { font-family: -apple-system, sans-serif; background: #080808; color: #e0e0e0; max-width: 760px; margin: 60px auto; padding: 0 24px 80px; line-height: 1.7; }
     h1 { color: #fff; font-size: 1.8rem; }
-    h2 { color: #fff; font-size: 1.1rem; margin-top: 36px; }
-    p, li { color: rgba(255,255,255,0.65); }
+    h2 { color: #fff; font-size: 1.15rem; margin-top: 36px; }
+    h3 { color: #fff; font-size: 1rem; margin-top: 24px; }
+    p, li { color: rgba(255,255,255,0.7); }
     a { color: #0a84ff; }
     .updated { color: rgba(255,255,255,0.35); font-size: 0.85rem; margin-bottom: 32px; }
+    .callout { background: rgba(10,132,255,0.08); border-left: 3px solid #0a84ff; padding: 14px 18px; margin: 20px 0; }
+    .callout p { color: rgba(255,255,255,0.85); margin: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); font-size: 0.95rem; vertical-align: top; }
+    th { color: #fff; font-weight: 600; }
   </style>
 </head>
 <body>
   <h1>Privacy Policy</h1>
-  <p class="updated">Last updated: May 2026</p>
+  <p class="updated">Effective: May 14, 2026 · Last updated: May 14, 2026</p>
 
-  <p>Student Focus ("we", "our", or "us") is committed to being transparent about what data the app accesses and how it is used. This policy explains everything in plain language.</p>
+  <p>Student Focus ("we", "our", "us", or the "Service") is operated by an individual developer based in Quebec, Canada. This Privacy Policy explains, in plain language, what personal information we collect, why we collect it, how it is used and shared, and the rights you have over it. It is written to comply with Canada's <strong>PIPEDA</strong>, Quebec's <strong>Law 25</strong> (the Act respecting the protection of personal information in the private sector, as amended), California's <strong>CCPA/CPRA</strong>, and the U.S. federal <strong>COPPA</strong>.</p>
 
-  <h2>1. What We Collect</h2>
+  <div class="callout">
+    <p><strong>The short version:</strong> We collect your school email for sign-in. Your blocked-apps list, daily limits, time blocks, usage stats, and block attempts all stay on your device. We do not sell your data, do not show ads, do not run analytics, and do not track you across other apps for advertising.</p>
+  </div>
+
+  <h2>1. Who We Are &amp; Privacy Officer</h2>
+  <p>The data controller is the developer of Student Focus, based in Montréal, Quebec, Canada.</p>
+  <p>Under Quebec Law 25 we are required to designate a person responsible for the protection of personal information. That person is:</p>
   <ul>
-    <li><strong>School email address</strong> — used to create your account and verify that you are a student. Stored by our authentication provider (Supabase). We do not sell or share it with third parties for marketing.</li>
-    <li><strong>App usage activity on your device</strong> — to function, Student Focus needs to know which apps you have open and how long you have used them. On iOS this is requested via Apple's Screen Time API (you grant this with an explicit permission prompt). On Android this is requested via the Usage Access permission. This data is read on your device and used to enforce limits, populate stats, and personalize recommendations. It is <strong>not</strong> uploaded to our servers.</li>
-    <li><strong>Block attempts and overrides</strong> — when a blocked app is opened, dismissed, overridden, or unblocked early, the app counts these events locally so you can see them in your stats. These counts stay on your device.</li>
-    <li><strong>Your block settings</strong> — the apps you chose to block, time windows, daily limits, and your override method (Friend Control or Self Control). Stored locally on your device.</li>
-    <li><strong>Authentication session</strong> — a short-lived session token used to keep you signed in. Stored securely on your device via encrypted storage.</li>
+    <li><strong>Privacy Officer:</strong> the developer of Student Focus</li>
+    <li><strong>Email:</strong> <a href="mailto:livefonam@gmail.com">livefonam@gmail.com</a></li>
+  </ul>
+  <p>You can use this address for any privacy-related request, complaint, or question.</p>
+
+  <h2>2. What Personal Information We Collect</h2>
+  <p>We collect only what is needed for the Service to work. Categories (CCPA §1798.110 framing):</p>
+  <table>
+    <tr><th>Category</th><th>Examples</th><th>Where it lives</th></tr>
+    <tr><td>Identifiers</td><td>Your school email address</td><td>Supabase (US) + your device</td></tr>
+    <tr><td>Authentication state</td><td>Session token</td><td>Encrypted secure storage on your device</td></tr>
+    <tr><td>Electronic activity on your device</td><td>Time spent in other apps (Screen Time / Usage Stats), once you grant permission</td><td>Your device only — never uploaded</td></tr>
+    <tr><td>Preferences / inferences</td><td>Apps you chose to block, time windows, daily limits, override method (Friend Control or Self Control)</td><td>Your device only</td></tr>
+    <tr><td>Local counters</td><td>Number of block attempts, sessions completed, streak days</td><td>Your device only</td></tr>
+  </table>
+
+  <h2>3. Sources of Information</h2>
+  <ul>
+    <li>Directly from you (email, the settings you choose).</li>
+    <li>Automatically from your device, only after you grant the relevant permission (iOS Screen Time / Android Usage Access).</li>
+    <li>We do not purchase or receive personal data from data brokers or third parties.</li>
   </ul>
 
-  <h2>2. Activity Across Other Apps</h2>
-  <p>Student Focus reads how much you use other apps on your device (e.g. TikTok, Instagram, YouTube). This is necessary to enforce daily limits and time blocks, and to show you accurate stats. This information is read on your device only and is never uploaded to our servers or shared with advertisers.</p>
-  <p>This is different from Apple's App Tracking Transparency definition of "tracking," which refers to linking your data with third-party data for advertising. We do not do that.</p>
+  <h2>4. Why We Collect It (Purposes &amp; Legal Bases)</h2>
+  <table>
+    <tr><th>Data</th><th>Purpose</th><th>Legal basis</th></tr>
+    <tr><td>School email</td><td>Verify your identity, create your account, sign you back in</td><td>Necessary to perform our contract with you</td></tr>
+    <tr><td>Usage stats from your device</td><td>Enforce the limits you set, show your own stats</td><td>Your explicit OS-level permission + our legitimate interest in delivering the feature</td></tr>
+    <tr><td>Block settings &amp; counters</td><td>Run the app and show your history</td><td>Necessary to perform our contract with you</td></tr>
+  </table>
+  <p>If you ever gave consent that you want to withdraw, email the Privacy Officer. Withdrawing consent will end your ability to use parts of the Service that depend on that data.</p>
 
-  <h2>3. Advertising</h2>
-  <p>Student Focus shows ads <strong>only inside the Self Control override flow</strong>. If you chose Self Control during setup, unblocking apps early requires you to watch a short ad (currently about 5 minutes of unskippable content). Ads are served by a third-party ad provider. Standard mobile ad SDKs typically collect device-level information (advertising identifier, IP address, device model, OS version) for ad delivery and frequency capping. If you select Friend Control instead, no ads are shown.</p>
-  <p>If you opted into App Tracking on iOS, the ad provider may use that identifier for personalized ads. If you opted out (the default), only non-personalized ads are shown.</p>
+  <h2>5. Who Else Sees Your Data (Third-Party Service Providers)</h2>
+  <p>Student Focus relies on three third-party services. Each receives only what is necessary for its narrow job:</p>
+  <table>
+    <tr><th>Service</th><th>What it receives</th><th>Where it processes</th></tr>
+    <tr><td>Supabase</td><td>Your email + session token (authentication only)</td><td>United States — <a href="https://supabase.com/privacy" target="_blank">privacy policy</a></td></tr>
+    <tr><td>Expo (Vercel)</td><td>A device push token if you grant notification permission. No personal content is sent.</td><td>United States — <a href="https://expo.dev/privacy" target="_blank">privacy policy</a></td></tr>
+    <tr><td>GitHub Pages (raw.githubusercontent.com)</td><td>A request to fetch a public list of university domains (used to validate your email). Your email is not sent in this request.</td><td>United States — <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank">privacy policy</a></td></tr>
+  </table>
+  <p>We do not work with any advertising networks, analytics SDKs, or trackers.</p>
 
-  <h2>4. What We Do Not Do</h2>
+  <h2>6. What We Do <em>Not</em> Do</h2>
   <ul>
-    <li>We do not sell your data.</li>
-    <li>We do not upload your screen time, usage data, or block attempts to our servers.</li>
-    <li>We do not share your personal information with third parties, except as required by law or as needed for the ad provider in the Self Control flow.</li>
-    <li>We do not show ads outside the Self Control override flow.</li>
+    <li>We do not sell your personal information.</li>
+    <li>We do not share your personal information for cross-context behavioral advertising.</li>
+    <li>We do not currently show advertisements anywhere in the app.</li>
+    <li>We do not use analytics SDKs (no Firebase Analytics, no Mixpanel, no Amplitude, etc.).</li>
+    <li>We do not use crash-reporting SDKs that send data off-device.</li>
+    <li>We do not request Apple's IDFA (advertising identifier) or any cross-app tracking permission.</li>
+    <li>We do not access your contacts, photos, camera, microphone, or precise location.</li>
   </ul>
 
-  <h2>5. Authentication</h2>
-  <p>We use Supabase to handle authentication. When you sign in, a one-time verification code is sent to your school email. Supabase stores your email address and session token on their servers. For details, see <a href="https://supabase.com/privacy" target="_blank">Supabase's privacy policy</a>.</p>
+  <h2>7. Cross-Border Transfer of Personal Information</h2>
+  <p>Supabase, Expo, and GitHub are all based in the United States. When you sign in, your email and session token are processed in the U.S.</p>
+  <p>Under Quebec Law 25 §17, we must assess whether sending data outside Quebec gives it adequate protection. We have considered:</p>
+  <ul>
+    <li><strong>Necessity:</strong> Authentication is core to the Service and there is no Quebec-based provider that offers an equivalent secure, school-email OTP service.</li>
+    <li><strong>Proportionality:</strong> Only the minimum needed (email + token) is sent.</li>
+    <li><strong>Security:</strong> All transit is encrypted (HTTPS). Data at rest at Supabase is encrypted. Sessions are stored on your device using OS-level encrypted storage (iOS Keychain / Android Keystore).</li>
+    <li><strong>Legal risk:</strong> U.S. law (including the CLOUD Act) may allow lawful-access requests by U.S. authorities. We will challenge any overbroad request to the extent legally possible.</li>
+  </ul>
+  <p>By using the Service, you acknowledge this cross-border transfer.</p>
 
-  <h2>6. Data Security</h2>
-  <p>Your session token is stored using your device's encrypted secure storage. We use industry-standard practices to protect the data we do hold. However, no method of transmission over the internet or electronic storage is 100% secure.</p>
+  <h2>8. Your Rights — Canada &amp; Quebec</h2>
+  <p>If you live in Canada, including Quebec, you have these rights:</p>
+  <ul>
+    <li><strong>Access:</strong> Ask us what personal information we have about you.</li>
+    <li><strong>Rectification:</strong> Ask us to correct inaccurate information.</li>
+    <li><strong>Deletion / Cessation of dissemination:</strong> Ask us to delete your account and the personal data we hold for you.</li>
+    <li><strong>Data portability (Quebec Law 25 §27):</strong> Ask us for a copy of your data in a structured, commonly used technical format.</li>
+    <li><strong>Withdraw consent:</strong> At any time.</li>
+    <li><strong>Complaint:</strong> If you are not satisfied with how we handled your request, you may complain to:
+      <ul>
+        <li>Commission d'accès à l'information du Québec — <a href="https://www.cai.gouv.qc.ca/" target="_blank">cai.gouv.qc.ca</a></li>
+        <li>Office of the Privacy Commissioner of Canada — <a href="https://www.priv.gc.ca/" target="_blank">priv.gc.ca</a></li>
+      </ul>
+    </li>
+  </ul>
+  <p>We will respond within <strong>30 days</strong> of receiving a verified request.</p>
 
-  <h2>7. Data Retention</h2>
-  <p>Your account data (email and session) is retained until you request deletion. To delete your account and all associated data, contact us at the email below and we will process your request within 30 days. Data stored on your device (stats, block settings, attempts) is deleted when you uninstall the app.</p>
+  <h2>9. Your Rights — California (CCPA / CPRA)</h2>
+  <p>If you live in California you have:</p>
+  <ul>
+    <li><strong>Right to know</strong> what personal information we collect and how it is used.</li>
+    <li><strong>Right to delete</strong> personal information we hold about you.</li>
+    <li><strong>Right to correct</strong> inaccurate personal information.</li>
+    <li><strong>Right to opt out of sale or sharing.</strong> We do not sell or share for cross-context behavioral advertising. There is nothing to opt out of, but you have the right anyway.</li>
+    <li><strong>Right to limit use of sensitive personal information.</strong> We do not use sensitive PI for inferring characteristics, so this right is effectively already honored.</li>
+    <li><strong>Right to non-discrimination</strong> — we will not deny you the Service or charge a different price for exercising any of these rights.</li>
+  </ul>
+  <p>To exercise any of these rights, email <a href="mailto:livefonam@gmail.com">livefonam@gmail.com</a>. We will verify your request (typically by confirming control of the email on file) and respond within <strong>45 days</strong> as required by CCPA. An authorized agent may submit a request on your behalf with your written permission.</p>
 
-  <h2>8. Children</h2>
-  <p>Student Focus is intended for students 13 years of age and older. We verify accounts via institutional school email addresses, which are typically not issued to children under 13. We do not knowingly collect personal information from children under 13. If you believe a child under 13 has created an account, contact us and we will remove it.</p>
+  <h2>10. Data Retention</h2>
+  <ul>
+    <li>Your email and authentication session remain at Supabase while your account is active. When you ask us to delete your account, we delete the record within <strong>30 days</strong> and instruct Supabase to do the same.</li>
+    <li>Local data on your device (settings, stats, attempt counters, PIN) is deleted as soon as you uninstall the app or use any "reset" action inside Settings.</li>
+    <li>Authentication logs at Supabase (sign-in attempts, IP addresses they may record) are retained per <a href="https://supabase.com/privacy" target="_blank">Supabase's policy</a>.</li>
+  </ul>
 
-  <h2>9. Changes to This Policy</h2>
-  <p>We may update this privacy policy from time to time. We will update the "Last updated" date at the top when changes are made. Continued use of the app after changes constitutes acceptance.</p>
+  <h2>11. Children (COPPA &amp; Quebec Law 25 §14)</h2>
+  <p>Student Focus is built for students aged 13 and older. We require an institutional school or university email address to sign up, which serves as a practical age gate because elementary schools generally do not issue such accounts to children under 13.</p>
+  <p>We do not knowingly collect personal information from anyone under 13. If you are a parent or guardian and you believe your child under 13 has created an account, please email us and we will delete it.</p>
+  <p>For Quebec residents aged 14 to 17: Quebec Law 25 permits a minor of 14 or older to provide their own consent for a service that is intended for them. Because Student Focus is targeted at students of high-school age and older, we treat your consent as valid.</p>
 
-  <h2>10. Contact</h2>
-  <p>Questions about your data or requests for deletion? Email us at <a href="mailto:livefonam@gmail.com">livefonam@gmail.com</a></p>
+  <h2>12. Security</h2>
+  <p>We take security seriously, but no system is perfect.</p>
+  <ul>
+    <li>All network traffic is over HTTPS / TLS.</li>
+    <li>Your authentication session is stored on your device in encrypted secure storage (iOS Keychain / Android Keystore) via <code>expo-secure-store</code>.</li>
+    <li>Your settings, email, and counters are stored using your device's standard app storage (AsyncStorage). This is sandboxed to the app and not encrypted at rest by us — but the data never leaves your device.</li>
+    <li>At Supabase, data is encrypted at rest using AES-256.</li>
+  </ul>
+  <p>If a security incident affects your data, we will notify the Commission d'accès à l'information du Québec and affected users within <strong>72 hours</strong> of becoming aware, where required by Quebec Law 25.</p>
+
+  <h2>13. iOS Screen Time &amp; Android Usage Access</h2>
+  <p>To enforce limits and show you real stats, the Service needs to know how long you have spent in other apps. This is read from your device's system APIs only after you grant the appropriate permission:</p>
+  <ul>
+    <li><strong>iOS:</strong> Apple's Screen Time / FamilyControls API. You will see Apple's own permission prompt the first time we ask. You can revoke it any time from <em>Settings → Screen Time → See All App &amp; Website Activity → Share Across Devices</em> (path may vary by iOS version) or directly within Settings &gt; Student Focus.</li>
+    <li><strong>Android:</strong> The Usage Access permission and (optionally) Accessibility Service. You grant both manually in Android Settings.</li>
+  </ul>
+  <p>This data is read on your device and used on your device. It is not sent to our servers and is not visible to us.</p>
+
+  <h2>14. Push Notifications</h2>
+  <p>If you allow notifications, your device registers a push token with Expo's push service (United States). The token is an anonymous device identifier used to deliver pushes; it cannot read information from your phone. You can revoke notification permission at any time in your device's OS settings.</p>
+
+  <h2>15. Changes to This Policy</h2>
+  <p>We may update this Policy from time to time. When we do, we will update the "Last updated" date at the top. If the change is material (for example, adding a new third-party service or starting to show ads), we will notify you inside the app before it takes effect, and you will have the opportunity to delete your account if you do not agree.</p>
+
+  <h2>16. Contact</h2>
+  <p>Questions, complaints, or requests about your data: <a href="mailto:livefonam@gmail.com">livefonam@gmail.com</a></p>
 
   <p style="margin-top:48px"><a href="index.html">Back</a></p>
 </body>
