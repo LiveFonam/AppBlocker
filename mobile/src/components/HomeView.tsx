@@ -138,7 +138,7 @@ export function HomeView({
   const onShare = async () => {
     try {
       await Share.share({
-        message: "Check out Student Focus — a free app blocker for students. https://livefonam.github.io/AppBlocker/",
+        message: "Check out Student Focus, a free app blocker for students. https://livefonam.github.io/AppBlocker/",
       })
     } catch (_) {}
   }
@@ -179,6 +179,14 @@ export function HomeView({
 
   return (
     <View style={styles.wrap}>
+      <View style={styles.cornerActions} pointerEvents="box-none">
+        <Pressable onPress={onShare} hitSlop={14} style={styles.cornerIcon}>
+          <Ionicons name="share-outline" size={28} color={colors.text} />
+        </Pressable>
+        <Pressable onPress={onOpenSettings} hitSlop={14} style={styles.cornerIcon}>
+          <Ionicons name="settings-outline" size={30} color={colors.text} />
+        </Pressable>
+      </View>
       <Animated.ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: scrollPadBottom }]}
@@ -193,20 +201,11 @@ export function HomeView({
 
         <View style={styles.profileHeader}>
           <View style={styles.profileLeft}>
-            <AvatarMark />
             <View style={styles.profileTextCol}>
               <Text style={styles.displayName} numberOfLines={1}>
                 {appBrandName}
               </Text>
             </View>
-          </View>
-          <View style={styles.profileActions}>
-            <Pressable onPress={onShare} hitSlop={12} style={styles.iconHitLarge}>
-              <Ionicons name="share-outline" size={28} color={colors.text} />
-            </Pressable>
-            <Pressable onPress={onOpenSettings} hitSlop={12} style={styles.iconHitLarge}>
-              <Ionicons name="settings-outline" size={30} color={colors.text} />
-            </Pressable>
           </View>
         </View>
 
@@ -412,6 +411,15 @@ const styles = StyleSheet.create({
   },
   iconHit: { padding: 8 },
   iconHitLarge: { padding: 12 },
+  cornerActions: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 50,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  cornerIcon: { padding: 6 },
   statRow: {
     flexDirection: 'row',
     gap: 12,

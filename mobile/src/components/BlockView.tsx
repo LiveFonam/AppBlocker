@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 import type { BlockTarget } from '../types'
 import { cardRadius, colors, fonts, space } from '../theme'
+import { OverrideGate } from './OverrideGate'
 
 const CATALOG = [
   'Instagram',
@@ -97,11 +98,26 @@ export function BlockView({
   const stopInMs = active ? Math.max(0, active.stopAvailableAt - now) : 0
   const canStopEarly = active != null && now >= active.stopAvailableAt
 
+  const [gateVisible, setGateVisible] = useState(false)
+  const pendingActionRef = useRef<null | (() => void)>(null)
+
+  const requestToggleOff = (id: string) => {
+    pendingActionRef.current = () => onToggle(id)
+    setGateVisible(true)
+  }
+
   const toggleCatalog = (name: string) => {
     const key = name.toLowerCase()
     const existing = byName.get(key)
-    if (existing) onToggle(existing.id)
-    else onAdd(name)
+    if (existing) {
+      if (existing.enabled) {
+        requestToggleOff(existing.id)
+      } else {
+        onToggle(existing.id)
+      }
+    } else {
+      onAdd(name)
+    }
   }
 
   const openStartModal = () => {
@@ -359,7 +375,13 @@ export function BlockView({
                     <Pressable
                       accessibilityRole="switch"
                       accessibilityState={{ checked: t.enabled }}
-                      onPress={() => onToggle(t.id)}
+                      onPress={() => {
+                        if (t.enabled) {
+                          requestToggleOff(t.id)
+                        } else {
+                          onToggle(t.id)
+                        }
+                      }}
                       style={[
                         styles.switchTrack,
                         t.enabled ? styles.switchOn : styles.switchOff,
@@ -426,6 +448,20 @@ export function BlockView({
         </Pressable>
         </KeyboardAvoidingView>
       </Modal>
+
+      <OverrideGate
+        visible={gateVisible}
+        onSuccess={() => {
+          setGateVisible(false)
+          const fn = pendingActionRef.current
+          pendingActionRef.current = null
+          if (fn) fn()
+        }}
+        onCancel={() => {
+          setGateVisible(false)
+          pendingActionRef.current = null
+        }}
+      />
     </View>
   )
 }

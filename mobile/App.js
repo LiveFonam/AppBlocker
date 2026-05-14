@@ -315,7 +315,7 @@ function BlockedScreenModal({ visible, blockTitle, endMins, appId = 'unknown', o
         setAlreadyUsed(true);
         return;
       }
-      // App hasn't used emergency yet — first app of the day gets 15 min, rest get 5
+      // App hasn't used emergency yet. First app of the day gets 15 min, rest get 5
       setAlreadyUsed(false);
       setEmergencyMins(data.firstAppId ? 5 : 15);
     })();
@@ -838,8 +838,54 @@ function App() {
   const preEditState   = useRef(null);
 
   useEffect(() => {
-    AsyncStorage.getItem('@nova_onboarding_done').then(v => setOnboardingDone(v === 'true'));
-    supabase.auth.getSession(); // restores persisted session silently on startup
+    (async () => {
+      await supabase.auth.getSession();
+      let hydrated = false;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+
+          if (profile?.onboarding_completed_at) {
+            const { data: settings } = await supabase
+              .from('block_settings')
+              .select('*')
+              .eq('user_id', session.user.id);
+
+            const ops = [
+              ['@nova_onboarding_done', 'true'],
+              ['@nova_email', session.user.email || ''],
+              ['@nova_override_method', profile.override_method || 'self'],
+              ['@nova_blocking_mode', profile.blocking_mode || 'strict'],
+            ];
+
+            if (settings && settings.length > 0) {
+              const blockedApps = settings.map((s) => s.app_id);
+              ops.push(['@nova_blocked_apps', JSON.stringify(blockedApps)]);
+
+              const perAppConfig = {};
+              settings.forEach((s) => {
+                perAppConfig[s.app_id] = {
+                  startMins: s.time_block_start_mins ?? 540,
+                  endMins: s.time_block_end_mins ?? 660,
+                  dailyLimitMins: s.daily_limit_mins ?? 60,
+                };
+              });
+              ops.push(['@nova_per_app_config', JSON.stringify(perAppConfig)]);
+            }
+            await AsyncStorage.multiSet(ops);
+            hydrated = true;
+          }
+        }
+      } catch (_) {}
+
+      const v = await AsyncStorage.getItem('@nova_onboarding_done');
+      setOnboardingDone(v === 'true');
+    })();
   }, []);
 
   const showToast = (msg) => {

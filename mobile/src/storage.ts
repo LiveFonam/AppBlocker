@@ -146,7 +146,7 @@ function migrate(raw: Record<string, unknown>): PersistedState {
   const sessions = Array.isArray(raw.sessions) ? raw.sessions : minimal.sessions
   let dailyUsage = Array.isArray(raw.dailyUsage) ? raw.dailyUsage : minimal.dailyUsage
 
-  /** Saves from before `profile` existed—keep them out of setup. */
+  /** Saves from before `profile` existed-keep them out of setup. */
   const legacyNoProfile =
     !hadProfileObject &&
     ((sessions as SessionEntry[]).length > 0 || (dailyUsage as DayUsage[]).length > 0)

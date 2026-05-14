@@ -16,7 +16,7 @@ export const space = {
   bottomNav: 88,
 }
 
-/** Fixed header title — never derived from onboarding goals. */
+/** Fixed header title - never derived from onboarding goals. */
 export const appBrandName = 'Student Focus'
 
 export const cardRadius = 16

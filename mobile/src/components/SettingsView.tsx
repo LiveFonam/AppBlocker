@@ -17,6 +17,7 @@ import {
   openFocusModesHelp,
   openScreenTimeSettings,
 } from '../utils/iosSystem'
+import { FriendControlPanel } from './FriendControlPanel'
 
 type Props = {
   data: PersistedState
@@ -36,6 +37,7 @@ export function SettingsView({
   const [hoursDraft, setHoursDraft] = useState(
     String(Math.round((data.profile.reportedDailyPhoneMinutes / 60) * 10) / 10),
   )
+  const [friendPanelOpen, setFriendPanelOpen] = useState(false)
 
   const applyDailyAverage = () => {
     const h = parseFloat(hoursDraft.replace(',', '.'))
@@ -107,6 +109,17 @@ export function SettingsView({
       </View>
 
       <View style={[styles.card, styles.minCard]}>
+        <Text style={styles.label}>Friend Control</Text>
+        <Text style={[styles.body, { marginBottom: 16 }]}>
+          Share an invite code with a trusted friend so they can unlock apps for you, or paste a
+          friend's code to control theirs. Codes rotate every hour.
+        </Text>
+        <Pressable style={styles.primaryOutline} onPress={() => setFriendPanelOpen(true)}>
+          <Text style={styles.primaryOutlineText}>Open Friend Control</Text>
+        </Pressable>
+      </View>
+
+      <View style={[styles.card, styles.minCard]}>
         <Text style={styles.label}>Setup</Text>
         <Pressable
           style={styles.secondaryOutline}
@@ -142,6 +155,8 @@ export function SettingsView({
           <Text style={styles.destructiveLabel}>Reset local data</Text>
         </Pressable>
       </View>
+
+      <FriendControlPanel visible={friendPanelOpen} onClose={() => setFriendPanelOpen(false)} />
     </ScrollView>
   )
 }

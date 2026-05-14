@@ -44,8 +44,8 @@
     <tr><th>Category</th><th>Examples</th><th>Where it lives</th></tr>
     <tr><td>Identifiers</td><td>Your school email address</td><td>Supabase (US) + your device</td></tr>
     <tr><td>Authentication state</td><td>Session token</td><td>Encrypted secure storage on your device</td></tr>
-    <tr><td>Electronic activity on your device</td><td>Time spent in other apps (Screen Time / Usage Stats), once you grant permission</td><td>Your device only — never uploaded</td></tr>
-    <tr><td>Preferences / inferences</td><td>Apps you chose to block, time windows, daily limits, override method (Friend Control or Self Control)</td><td>Your device only</td></tr>
+    <tr><td>Electronic activity on your device</td><td>Time spent in other apps (Screen Time / Usage Stats), once you grant permission</td><td>Your device only, never uploaded</td></tr>
+    <tr><td>Preferences / inferences</td><td>Apps you chose to block, time windows, daily limits, override method (Friend Control or Self Control)</td><td>Supabase (US) and your device, so the setup follows you to a new phone</td></tr>
     <tr><td>Local counters</td><td>Number of block attempts, sessions completed, streak days</td><td>Your device only</td></tr>
   </table>
 
@@ -69,9 +69,9 @@
   <p>Student Focus relies on three third-party services. Each receives only what is necessary for its narrow job:</p>
   <table>
     <tr><th>Service</th><th>What it receives</th><th>Where it processes</th></tr>
-    <tr><td>Supabase</td><td>Your email + session token (authentication only)</td><td>United States — <a href="https://supabase.com/privacy" target="_blank">privacy policy</a></td></tr>
-    <tr><td>Expo (Vercel)</td><td>A device push token if you grant notification permission. No personal content is sent.</td><td>United States — <a href="https://expo.dev/privacy" target="_blank">privacy policy</a></td></tr>
-    <tr><td>GitHub Pages (raw.githubusercontent.com)</td><td>A request to fetch a public list of university domains (used to validate your email). Your email is not sent in this request.</td><td>United States — <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank">privacy policy</a></td></tr>
+    <tr><td>Supabase</td><td>Your email, session token, and the block settings you configured (which apps, time windows, daily limits, override method). Block settings are synced so you can recover them on a new phone. Apple Screen Time / Android Usage Stats data is NOT sent to Supabase.</td><td>United States. See <a href="https://supabase.com/privacy" target="_blank">privacy policy</a></td></tr>
+    <tr><td>Expo (Vercel)</td><td>A device push token if you grant notification permission. No personal content is sent.</td><td>United States. <a href="https://expo.dev/privacy" target="_blank">privacy policy</a></td></tr>
+    <tr><td>GitHub Pages (raw.githubusercontent.com)</td><td>A request to fetch a public list of university domains (used to validate your email). Your email is not sent in this request.</td><td>United States. <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank">privacy policy</a></td></tr>
   </table>
   <p>We do not work with any advertising networks, analytics SDKs, or trackers.</p>
 
@@ -87,7 +87,7 @@
   </ul>
 
   <h2>7. Cross-Border Transfer of Personal Information</h2>
-  <p>Supabase, Expo, and GitHub are all based in the United States. When you sign in, your email and session token are processed in the U.S.</p>
+  <p>Supabase, Expo, and GitHub are all based in the United States. When you sign in, your email, session token, and your block settings are processed in the U.S.</p>
   <p>Under Quebec Law 25 §17, we must assess whether sending data outside Quebec gives it adequate protection. We have considered:</p>
   <ul>
     <li><strong>Necessity:</strong> Authentication is core to the Service and there is no Quebec-based provider that offers an equivalent secure, school-email OTP service.</li>
@@ -97,7 +97,7 @@
   </ul>
   <p>By using the Service, you acknowledge this cross-border transfer.</p>
 
-  <h2>8. Your Rights — Canada &amp; Quebec</h2>
+  <h2>8. Your Rights. Canada &amp; Quebec</h2>
   <p>If you live in Canada, including Quebec, you have these rights:</p>
   <ul>
     <li><strong>Access:</strong> Ask us what personal information we have about you.</li>
@@ -107,14 +107,14 @@
     <li><strong>Withdraw consent:</strong> At any time.</li>
     <li><strong>Complaint:</strong> If you are not satisfied with how we handled your request, you may complain to:
       <ul>
-        <li>Commission d'accès à l'information du Québec — <a href="https://www.cai.gouv.qc.ca/" target="_blank">cai.gouv.qc.ca</a></li>
-        <li>Office of the Privacy Commissioner of Canada — <a href="https://www.priv.gc.ca/" target="_blank">priv.gc.ca</a></li>
+        <li>Commission d'accès à l'information du Québec. <a href="https://www.cai.gouv.qc.ca/" target="_blank">cai.gouv.qc.ca</a></li>
+        <li>Office of the Privacy Commissioner of Canada. <a href="https://www.priv.gc.ca/" target="_blank">priv.gc.ca</a></li>
       </ul>
     </li>
   </ul>
   <p>We will respond within <strong>30 days</strong> of receiving a verified request.</p>
 
-  <h2>9. Your Rights — California (CCPA / CPRA)</h2>
+  <h2>9. Your Rights. California (CCPA / CPRA)</h2>
   <p>If you live in California you have:</p>
   <ul>
     <li><strong>Right to know</strong> what personal information we collect and how it is used.</li>
@@ -122,13 +122,13 @@
     <li><strong>Right to correct</strong> inaccurate personal information.</li>
     <li><strong>Right to opt out of sale or sharing.</strong> We do not sell or share for cross-context behavioral advertising. There is nothing to opt out of, but you have the right anyway.</li>
     <li><strong>Right to limit use of sensitive personal information.</strong> We do not use sensitive PI for inferring characteristics, so this right is effectively already honored.</li>
-    <li><strong>Right to non-discrimination</strong> — we will not deny you the Service or charge a different price for exercising any of these rights.</li>
+    <li><strong>Right to non-discrimination:</strong> we will not deny you the Service or charge a different price for exercising any of these rights.</li>
   </ul>
   <p>To exercise any of these rights, email <a href="mailto:livefonam@gmail.com">livefonam@gmail.com</a>. We will verify your request (typically by confirming control of the email on file) and respond within <strong>45 days</strong> as required by CCPA. An authorized agent may submit a request on your behalf with your written permission.</p>
 
   <h2>10. Data Retention</h2>
   <ul>
-    <li>Your email and authentication session remain at Supabase while your account is active. When you ask us to delete your account, we delete the record within <strong>30 days</strong> and instruct Supabase to do the same.</li>
+    <li>Your email, authentication session, and synced block settings remain at Supabase while your account is active. When you ask us to delete your account, we delete all of those rows within <strong>30 days</strong> and instruct Supabase to do the same.</li>
     <li>Local data on your device (settings, stats, attempt counters, PIN) is deleted as soon as you uninstall the app or use any "reset" action inside Settings.</li>
     <li>Authentication logs at Supabase (sign-in attempts, IP addresses they may record) are retained per <a href="https://supabase.com/privacy" target="_blank">Supabase's policy</a>.</li>
   </ul>
@@ -143,7 +143,7 @@
   <ul>
     <li>All network traffic is over HTTPS / TLS.</li>
     <li>Your authentication session is stored on your device in encrypted secure storage (iOS Keychain / Android Keystore) via <code>expo-secure-store</code>.</li>
-    <li>Your settings, email, and counters are stored using your device's standard app storage (AsyncStorage). This is sandboxed to the app and not encrypted at rest by us — but the data never leaves your device.</li>
+    <li>Your settings, email, and counters are stored using your device's standard app storage (AsyncStorage). This is sandboxed to the app and not encrypted at rest by us, but the data never leaves your device.</li>
     <li>At Supabase, data is encrypted at rest using AES-256.</li>
   </ul>
   <p>If a security incident affects your data, we will notify the Commission d'accès à l'information du Québec and affected users within <strong>72 hours</strong> of becoming aware, where required by Quebec Law 25.</p>

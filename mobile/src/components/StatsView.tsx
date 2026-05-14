@@ -85,12 +85,21 @@ export function StatsView({ data, onOpenSettings, bottomInset }: Props) {
   const onShare = async () => {
     try {
       await Share.share({
-        message: "Check out Student Focus — a free app blocker for students. https://livefonam.github.io/AppBlocker/",
+        message: "Check out Student Focus, a free app blocker for students. https://livefonam.github.io/AppBlocker/",
       })
     } catch (_) {}
   }
 
   return (
+    <View style={{ flex: 1 }}>
+      <View style={styles.cornerActions} pointerEvents="box-none">
+        <Pressable onPress={onShare} hitSlop={14} style={styles.cornerIcon}>
+          <Ionicons name="share-outline" size={28} color={colors.text} />
+        </Pressable>
+        <Pressable onPress={onOpenSettings} hitSlop={14} style={styles.cornerIcon}>
+          <Ionicons name="settings-outline" size={30} color={colors.text} />
+        </Pressable>
+      </View>
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={[styles.content, { paddingBottom: bottomInset + space.bottomNav + 28 }]}
@@ -102,20 +111,11 @@ export function StatsView({ data, onOpenSettings, bottomInset }: Props) {
 
       <View style={styles.profileHeader}>
         <View style={styles.profileLeft}>
-          <AvatarMark />
           <View style={styles.profileTextCol}>
             <Text style={styles.displayName} numberOfLines={1}>
               {appBrandName}
             </Text>
           </View>
-        </View>
-        <View style={styles.profileActions}>
-          <Pressable onPress={onShare} hitSlop={12} style={styles.iconHit}>
-            <Ionicons name="share-outline" size={28} color={colors.text} />
-          </Pressable>
-          <Pressable onPress={onOpenSettings} hitSlop={12} style={styles.iconHit}>
-            <Ionicons name="settings-outline" size={30} color={colors.text} />
-          </Pressable>
         </View>
       </View>
 
@@ -256,11 +256,21 @@ export function StatsView({ data, onOpenSettings, bottomInset }: Props) {
         )}
       </View>
     </ScrollView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
+  cornerActions: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 50,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  cornerIcon: { padding: 6 },
   content: {
     maxWidth: 672,
     width: '100%',

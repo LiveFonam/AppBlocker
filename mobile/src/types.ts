@@ -9,9 +9,9 @@ export interface UserProfile {
   /** Age used for life projection; null = use default curve. */
   age: number | null
   setupComplete: boolean
-  /** Set true only in finishSetupPatch — source of truth for showing the main app. */
+  /** Set true only in finishSetupPatch - source of truth for showing the main app. */
   onboardingDone: boolean
-  /** ISO date when setup finished — used for “days in app” on Home. */
+  /** ISO date when setup finished - used for “days in app” on Home. */
   setupCompletedAt: string | null
   /** After first scroll intro, skip heavy animations. */
   hasSeenMainScrollIntro: boolean

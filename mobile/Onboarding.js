@@ -118,6 +118,11 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   const [endInput,     setEndInput]     = useState('');
   const [perAppConfig, setPerAppConfig] = useState({});
   const [expandedAppId, setExpandedAppId] = useState(null);
+  const [showAppsHint, setShowAppsHint] = useState(false);
+  const appsScrollRef = useRef(null);
+  const appsHintAnim = useRef(new Animated.Value(0)).current;
+  const [limitInputVisible, setLimitInputVisible] = useState(false);
+  const [limitInputValue, setLimitInputValue] = useState('');
 
   const guessHours = GUESS_VALUES[guessIdx];
   const actualHours = +(guessHours * 1.4).toFixed(1);
@@ -126,6 +131,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   const studyHours  = +(diff / 2).toFixed(1);
   const weekHrs     = (cut * 7).toFixed(1);
   const daysBack    = Math.round((cut * 365) / 24);
+  const recommendedMins = Math.max(15, Math.min(240, Math.round(actualHours * 20)));
 
   useEffect(() => {
     if (step !== 0) return;
@@ -161,6 +167,26 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   useEffect(() => {
     if (step !== 7) return;
     requestNotifs();
+  }, [step]);
+
+  useEffect(() => {
+    setSameForAll(selectedApps.length <= 1);
+  }, [selectedApps.length]);
+
+  useEffect(() => {
+    setShowAppsHint(false);
+    appsHintAnim.setValue(0);
+    if (step !== 9) return;
+    const t = setTimeout(() => {
+      setShowAppsHint(true);
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(appsHintAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+          Animated.timing(appsHintAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
+        ])
+      ).start();
+    }, 2000);
+    return () => clearTimeout(t);
   }, [step]);
 
   useEffect(() => {
@@ -200,10 +226,10 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
     }).start();
   };
   const shouldSkip = (idx) => {
-    if (idx === 11 && selectedApps.length <= 1) return true;
-    if (idx === 12 && (!enforcementTypes.includes('block') || !sameForAll)) return true;
-    if (idx === 13 && (!enforcementTypes.includes('limit') || !sameForAll)) return true;
-    if (idx === 14 && (sameForAll || enforcementTypes.length === 0)) return true;
+    if (idx === 11) return true;
+    if (idx === 12 && (!enforcementTypes.includes('block') || selectedApps.length > 1)) return true;
+    if (idx === 13 && (!enforcementTypes.includes('limit') || selectedApps.length > 1)) return true;
+    if (idx === 14 && (selectedApps.length <= 1 || enforcementTypes.length === 0)) return true;
     if (idx === 15 && !enforcementTypes.includes('limit')) return true;
     return false;
   };
@@ -289,6 +315,34 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
         ['@nova_per_app_config',  JSON.stringify(perAppConfig)],
       ]);
     } catch (_) {}
+
+    // Sync to Supabase so the user can restore on another device.
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('profiles').upsert({
+          user_id: user.id,
+          override_method: overrideMethod || 'self',
+          blocking_mode: blockingMode,
+          onboarding_completed_at: new Date().toISOString(),
+        });
+        if (selectedApps.length > 0) {
+          const rows = selectedApps.map((app_id) => {
+            const cfg = perAppConfig[app_id] || { startMins, endMins, dailyLimitMins };
+            return {
+              user_id: user.id,
+              app_id,
+              enabled: true,
+              daily_limit_mins: cfg.dailyLimitMins ?? dailyLimitMins,
+              time_block_start_mins: cfg.startMins ?? startMins,
+              time_block_end_mins: cfg.endMins ?? endMins,
+            };
+          });
+          await supabase.from('block_settings').upsert(rows);
+        }
+      }
+    } catch (_) {}
+
     onComplete({
       blockName: blockName || 'Focus Block',
       selectedApps, startMins, endMins, blockingMode, email,
@@ -316,14 +370,14 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   // ── Slides ─────────────────────────────────────────────────────────────────
   const slides = [
 
-    /* 0 — Welcome */
+    /* 0 - Welcome */
     <TouchableOpacity key="s0" activeOpacity={1} onPress={next} style={[st.slide, { justifyContent: 'center', alignItems: 'center' }]}>
       <View style={[st.badge, { alignSelf: 'center' }]}><Text style={st.badgeTxt}>STUDENT FOCUS</Text></View>
       <Text style={[st.bigTitle, { textAlign: 'center' }]}>Take back{'\n'}your time.</Text>
       <Text style={[st.sub, { textAlign: 'center' }]}>The free app blocker for students.</Text>
     </TouchableOpacity>,
 
-    /* 1 — Permission */
+    /* 1 - Permission */
     <View key="s1" style={[st.slide, { backgroundColor: '#050505' }]}>
       <Text style={[st.bigTitle, { fontSize: 24, lineHeight: 32 }]}>To block apps and show your real usage, we need access to your activity data.</Text>
       <View style={st.requiredPill}>
@@ -344,7 +398,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       </View>
     </View>,
 
-    /* 2 — School email */
+    /* 2 - School email */
     <KeyboardAvoidingView key="s2" behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: W }}>
       <ScrollView contentContainerStyle={[st.slide, { justifyContent: 'center' }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={st.badge}><Text style={st.badgeTxt}>STUDENTS ONLY - FREE</Text></View>
@@ -394,7 +448,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       </ScrollView>
     </KeyboardAvoidingView>,
 
-    /* 3 — OTP verification */
+    /* 3 - OTP verification */
     <KeyboardAvoidingView key="s-otp" behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: W }}>
       <ScrollView contentContainerStyle={[st.slide, { justifyContent: 'center' }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <Text style={st.bigTitle}>Check your inbox.</Text>
@@ -444,7 +498,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       </ScrollView>
     </KeyboardAvoidingView>,
 
-    /* 4 — Daily guess (picker-wheel zoom) */
+    /* 4 - Daily guess (picker-wheel zoom) */
     <View key="s3" style={st.slide}>
       <Text style={[st.bigTitle, { textAlign: 'center', fontSize: 22 }]}>How much time do you{'\n'}think you use daily?</Text>
       <Text style={[st.sub, { textAlign: 'center' }]}>Scroll to your guess</Text>
@@ -482,7 +536,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
             const opacity = scrollX.interpolate({ inputRange, outputRange: [0.3, 0.55, 1, 0.55, 0.3], extrapolate: 'clamp' });
             return (
               <Animated.View style={{ width: ITEM_W, alignItems: 'center', justifyContent: 'center', transform: [{ scale }], opacity }}>
-                <Text style={st.scrollerBig}>{item % 1 === 0 ? `${item}` : item.toFixed(1)}</Text>
+                <Text style={st.scrollerBig} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{item % 1 === 0 ? `${item}` : item.toFixed(1)}</Text>
               </Animated.View>
             );
           }}
@@ -498,7 +552,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       )}
     </View>,
 
-    /* 4 — Reality check (vertical, fade in) */
+    /* 4 - Reality check (vertical, fade in) */
     <View key="s4" style={st.slide}>
       <Text style={[st.bigTitle, { textAlign: 'center' }]}>Here's your{'\n'}reality check.</Text>
       <View style={{ marginTop: 24 }}>
@@ -517,7 +571,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       </View>
     </View>,
 
-    /* 5 — Benefits (2-column grid) */
+    /* 5 - Benefits (2-column grid) */
     <View key="s5" style={st.slide}>
       <Text style={[st.bigTitle, { textAlign: 'center', fontSize: 22 }]}>What changing this{'\n'}actually looks like.</Text>
       <Text style={[st.sub, { textAlign: 'center', marginBottom: 20 }]}>Users report after 30 days</Text>
@@ -532,10 +586,10 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       </View>
     </View>,
 
-    /* 6 — Notifications (auto-triggers real iOS popup via useEffect, no UI needed) */
+    /* 6 - Notifications (auto-triggers real iOS popup via useEffect, no UI needed) */
     <View key="s6" style={st.slide} />,
 
-    /* 8 — Screen Time auth */
+    /* 8 - Screen Time auth */
     <View key="s_screentime" style={st.slide}>
       <Text style={st.bigTitle}>Read your{'\n'}screen time?</Text>
       <Text style={st.sub}>
@@ -559,8 +613,9 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       )}
     </View>,
 
-    /* 9 — App suggestions */
-    <ScrollView key="s_apps" style={{ width: W, backgroundColor: '#050505' }} contentContainerStyle={[st.slide, { justifyContent: 'flex-start', paddingTop: H * 0.08, paddingBottom: 48 }]} showsVerticalScrollIndicator={false}>
+    /* 9 - App suggestions */
+    <View key="s_apps" style={{ width: W, flex: 1, backgroundColor: '#050505' }}>
+    <ScrollView ref={appsScrollRef} style={{ width: W, backgroundColor: '#050505' }} contentContainerStyle={[st.slide, { justifyContent: 'flex-start', paddingTop: H * 0.08, paddingBottom: 48 }]} showsVerticalScrollIndicator={false}>
       <Text style={st.bigTitle}>Apps to take{'\n'}control of.</Text>
       <Text style={st.sub}>
         {Platform.OS === 'android'
@@ -570,7 +625,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       {Platform.OS === 'ios' && appsScanned && suggestedApps.length === 0 && (
         <View style={[st.infoBox, { marginTop: 16 }]}>
           <Text style={st.infoTxt}>
-            We couldn't auto-detect installed apps. Pick from the list below — only the ones you actually have.
+            We couldn't auto-detect installed apps. Pick from the list below, only the ones you actually have.
           </Text>
         </View>
       )}
@@ -605,12 +660,40 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
             : `Target ${selectedApps.length} app${selectedApps.length !== 1 ? 's' : ''}`}
         </Text>
       </TouchableOpacity>
-    </ScrollView>,
+    </ScrollView>
+    {showAppsHint && (
+      <Animated.View
+        pointerEvents="box-none"
+        style={{
+          position: 'absolute',
+          left: 0, right: 0, bottom: 90,
+          alignItems: 'center',
+          opacity: appsHintAnim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }),
+          transform: [{ translateY: appsHintAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 8] }) }],
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => { setShowAppsHint(false); appsScrollRef.current?.scrollToEnd({ animated: true }); }}
+          style={{
+            backgroundColor: 'rgba(255,255,255,0.95)',
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            borderRadius: 24,
+            flexDirection: 'row',
+            alignItems: 'center',
+          }}
+        >
+          <Text style={{ color: '#000', fontSize: 13, fontWeight: '700', marginRight: 6 }}>Continue below</Text>
+          <Text style={{ color: '#000', fontSize: 16, fontWeight: '700' }}>↓</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    )}
+    </View>,
 
-    /* 9 — Enforcement multi-select */
+    /* 9 - Enforcement multi-select */
     <View key="s_enforce" style={st.slide}>
       <Text style={st.bigTitle}>How do you want{'\n'}to limit them?</Text>
-      <Text style={st.sub}>Pick one or both — they work together.</Text>
+      <Text style={st.sub}>Pick one or both. They work together.</Text>
       {[
         { id: 'limit', title: 'Time Limit', sub: 'Cap your daily usage (e.g. 30 min/day).' },
         { id: 'block', title: 'Time Block', sub: 'Block apps during specific hours (e.g. 9am-5pm).' },
@@ -629,7 +712,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       })}
     </View>,
 
-    /* 10 — Same for all apps? */
+    /* 10 - Same for all apps? */
     (() => {
       const hasLimit = enforcementTypes.includes('limit');
       const hasBlock = enforcementTypes.includes('block');
@@ -651,7 +734,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       );
     })(),
 
-    /* 11 — Set time block (name + editable time window) */
+    /* 11 - Set time block (name + editable time window) */
     <ScrollView key="s_block" style={{ width: W }} contentContainerStyle={[st.slide, { paddingBottom: 48 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       <Text style={st.bigTitle}>Set your{'\n'}time block.</Text>
       <Text style={st.sub}>Name it, then set the time window.</Text>
@@ -724,13 +807,38 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       </TouchableOpacity>
     </ScrollView>,
 
-    /* 12 — Daily Limit picker */
+    /* 12 - Daily Limit picker */
     <View key="s_limit" style={st.slide}>
       <Text style={st.bigTitle}>How much per day?</Text>
-      <Text style={st.sub}>The total time you'll allow yourself on these apps each day.</Text>
+      <Text style={st.sub}>The total time you'll allow yourself on these apps each day. Tap the number to type your own.</Text>
       <View style={{ alignItems: 'center', marginTop: 32 }}>
-        <Text style={{ color: O.white, fontSize: 72, fontWeight: '700' }}>{dailyLimitMins}</Text>
-        <Text style={{ color: O.muted, fontSize: 16 }}>minutes / day</Text>
+        {limitInputVisible ? (
+          <TextInput
+            autoFocus
+            style={{ color: O.white, fontSize: 72, fontWeight: '700', textAlign: 'center', minWidth: 180, borderBottomWidth: 1, borderBottomColor: O.muted, padding: 0 }}
+            value={limitInputValue}
+            onChangeText={v => setLimitInputValue(v.replace(/\D/g, '').slice(0, 4))}
+            keyboardType="number-pad"
+            onBlur={() => {
+              const n = parseInt(limitInputValue, 10);
+              if (!isNaN(n)) setDailyLimitMins(Math.max(5, Math.min(480, n)));
+              setLimitInputVisible(false);
+              setLimitInputValue('');
+            }}
+            onSubmitEditing={() => {
+              const n = parseInt(limitInputValue, 10);
+              if (!isNaN(n)) setDailyLimitMins(Math.max(5, Math.min(480, n)));
+              setLimitInputVisible(false);
+              setLimitInputValue('');
+            }}
+            returnKeyType="done"
+          />
+        ) : (
+          <TouchableOpacity onPress={() => { setLimitInputValue(String(dailyLimitMins)); setLimitInputVisible(true); }}>
+            <Text style={{ color: O.white, fontSize: 72, fontWeight: '700' }}>{dailyLimitMins}</Text>
+          </TouchableOpacity>
+        )}
+        <Text style={{ color: O.muted, fontSize: 16, marginTop: 4 }}>minutes / day</Text>
       </View>
       <View style={[st.timeRow, { marginTop: 24, justifyContent: 'center' }]}>
         <TouchableOpacity style={st.limitAdjBtn} onPress={() => setDailyLimitMins(m => Math.max(5, m - 15))}>
@@ -746,9 +854,15 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
           <Text style={st.limitAdjTxt}>+15</Text>
         </TouchableOpacity>
       </View>
+      <TouchableOpacity
+        style={{ alignSelf: 'center', marginTop: 28, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, borderWidth: 1, borderColor: O.white }}
+        onPress={() => setDailyLimitMins(recommendedMins)}
+      >
+        <Text style={{ color: O.white, fontWeight: '700', fontSize: 14 }}>Use Recommended ({recommendedMins} min)</Text>
+      </TouchableOpacity>
     </View>,
 
-    /* 14 — Per-app customization */
+    /* 14 - Per-app customization */
     <ScrollView key="s_perapp" style={{ width: W }} contentContainerStyle={[st.slide, { paddingBottom: 48 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       <Text style={st.bigTitle}>Customize{'\n'}each app.</Text>
       <Text style={st.sub}>Tap an app to set its own {enforcementTypes.includes('block') && enforcementTypes.includes('limit') ? 'time block and daily limit' : enforcementTypes.includes('block') ? 'time block' : 'daily limit'}.</Text>
@@ -791,7 +905,22 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
                     <View style={{ marginTop: 16 }}>
                       <Text style={st.sectionLbl}>DAILY LIMIT</Text>
                       <View style={{ alignItems: 'center', marginTop: 8 }}>
-                        <Text style={{ color: O.white, fontSize: 36, fontWeight: '700' }}>{cfg.dailyLimitMins} min</Text>
+                        <TextInput
+                          style={{ color: O.white, fontSize: 36, fontWeight: '700', textAlign: 'center', minWidth: 120, padding: 0 }}
+                          value={String(cfg.dailyLimitMins)}
+                          onChangeText={v => {
+                            const cleaned = v.replace(/\D/g, '').slice(0, 4);
+                            const n = parseInt(cleaned, 10);
+                            setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, dailyLimitMins: isNaN(n) ? 0 : Math.min(480, n) } }));
+                          }}
+                          onBlur={() => {
+                            if (cfg.dailyLimitMins < 5) {
+                              setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, dailyLimitMins: 5 } }));
+                            }
+                          }}
+                          keyboardType="number-pad"
+                        />
+                        <Text style={{ color: O.muted, fontSize: 14 }}>min / day</Text>
                       </View>
                       <View style={[st.timeRow, { marginTop: 8, justifyContent: 'center' }]}>
                         <TouchableOpacity style={st.limitAdjBtn} onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, dailyLimitMins: Math.max(5, cfg.dailyLimitMins - 15) } }))}>
@@ -807,6 +936,12 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
                           <Text style={st.limitAdjTxt}>+15</Text>
                         </TouchableOpacity>
                       </View>
+                      <TouchableOpacity
+                        style={{ alignSelf: 'center', marginTop: 12, paddingHorizontal: 18, paddingVertical: 8, borderRadius: 18, borderWidth: 1, borderColor: O.white }}
+                        onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, dailyLimitMins: recommendedMins } }))}
+                      >
+                        <Text style={{ color: O.white, fontWeight: '700', fontSize: 12 }}>Use Recommended ({recommendedMins} min)</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
                 </View>
@@ -820,13 +955,13 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       </TouchableOpacity>
     </ScrollView>,
 
-    /* 15 — Strict / Taper (only if Time Limit selected) */
+    /* 15 - Strict / Taper (only if Time Limit selected) */
     <View key="s_mode" style={st.slide}>
       <Text style={st.bigTitle}>Strict or gradual?</Text>
       <Text style={st.sub}>How you want the daily limit enforced.</Text>
       <TouchableOpacity style={[st.modeCard, blockingMode === 'strict' && st.modeCardOn, { marginTop: 16 }]} onPress={() => setBlockingMode('strict')}>
         <Text style={[st.modeTitle, blockingMode === 'strict' && { color: O.white }]}>Strict</Text>
-        <Text style={st.modeSub}>Hard cutoff — apps lock immediately when you hit the daily limit.</Text>
+        <Text style={st.modeSub}>Hard cutoff. Apps lock immediately when you hit the daily limit.</Text>
       </TouchableOpacity>
       <TouchableOpacity style={[st.modeCard, blockingMode === 'taper' && st.modeCardOn, { marginTop: 16 }]} onPress={() => setBlockingMode('taper')}>
         <Text style={[st.modeTitle, blockingMode === 'taper' && { color: O.white }]}>Taper Off</Text>
@@ -834,7 +969,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       </TouchableOpacity>
     </View>,
 
-    /* 14 — Override Method (Friend vs Self) */
+    /* 14 - Override Method (Friend vs Self) */
     <ScrollView key="s_override" style={{ width: W }} contentContainerStyle={[st.slide, { paddingBottom: 48 }]} showsVerticalScrollIndicator={false}>
       <Text style={st.bigTitle}>Who unlocks{'\n'}your blocks?</Text>
       <Text style={st.sub}>Pick how you'll override your own limits later.</Text>
@@ -862,7 +997,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
         onPress={finishOnboarding}
         disabled={!overrideMethod}
       >
-        <Text style={st.btnTxt}>Done — let's go</Text>
+        <Text style={st.btnTxt}>Done. Let's go</Text>
       </TouchableOpacity>
     </ScrollView>,
   ];
@@ -966,7 +1101,7 @@ const st = StyleSheet.create({
     borderRadius: 8, padding: 12, marginTop: 8,
   },
   infoTxt: { color: O.muted, fontSize: 13, lineHeight: 19, textAlign: 'center' },
-  scrollerBig: { fontSize: 60, fontWeight: '700', color: O.white },
+  scrollerBig: { fontSize: 44, fontWeight: '700', color: O.white, textAlign: 'center' },
   scrollerUnit: { fontSize: 20, color: O.muted, marginTop: -8 },
   swipeHint: { color: O.muted, fontSize: 13, textAlign: 'center', marginTop: 16 },
   hCard: {
