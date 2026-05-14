@@ -17,41 +17,49 @@
   <h1>Privacy Policy</h1>
   <p class="updated">Last updated: May 2026</p>
 
-  <p>Student Focus ("we", "our", or "us") is committed to protecting your privacy. This policy explains what data we collect, how we use it, and what choices you have.</p>
+  <p>Student Focus ("we", "our", or "us") is committed to being transparent about what data the app accesses and how it is used. This policy explains everything in plain language.</p>
 
   <h2>1. What We Collect</h2>
   <ul>
-    <li><strong>School email address</strong> - used to create your account and verify that you are a student. We do not sell or share this with third parties.</li>
-    <li><strong>App usage statistics</strong> - collected and stored on your device only (Android: via the UsageStats API; iOS: estimated from app activity). This data never leaves your device and is never uploaded to our servers.</li>
-    <li><strong>Block settings</strong> - the apps you choose to block and your schedule. Stored locally on your device.</li>
-    <li><strong>Authentication session</strong> - a short-lived session token used to keep you signed in, stored securely on your device via encrypted storage.</li>
+    <li><strong>School email address</strong> — used to create your account and verify that you are a student. Stored by our authentication provider (Supabase). We do not sell or share it with third parties for marketing.</li>
+    <li><strong>App usage activity on your device</strong> — to function, Student Focus needs to know which apps you have open and how long you have used them. On iOS this is requested via Apple's Screen Time API (you grant this with an explicit permission prompt). On Android this is requested via the Usage Access permission. This data is read on your device and used to enforce limits, populate stats, and personalize recommendations. It is <strong>not</strong> uploaded to our servers.</li>
+    <li><strong>Block attempts and overrides</strong> — when a blocked app is opened, dismissed, overridden, or unblocked early, the app counts these events locally so you can see them in your stats. These counts stay on your device.</li>
+    <li><strong>Your block settings</strong> — the apps you chose to block, time windows, daily limits, and your override method (Friend Control or Self Control). Stored locally on your device.</li>
+    <li><strong>Authentication session</strong> — a short-lived session token used to keep you signed in. Stored securely on your device via encrypted storage.</li>
   </ul>
 
-  <h2>2. What We Do Not Do</h2>
+  <h2>2. Activity Across Other Apps</h2>
+  <p>Student Focus reads how much you use other apps on your device (e.g. TikTok, Instagram, YouTube). This is necessary to enforce daily limits and time blocks, and to show you accurate stats. This information is read on your device only and is never uploaded to our servers or shared with advertisers.</p>
+  <p>This is different from Apple's App Tracking Transparency definition of "tracking," which refers to linking your data with third-party data for advertising. We do not do that.</p>
+
+  <h2>3. Advertising</h2>
+  <p>Student Focus shows ads <strong>only inside the Self Control override flow</strong>. If you chose Self Control during setup, unblocking apps early requires you to watch a short ad (currently about 5 minutes of unskippable content). Ads are served by a third-party ad provider. Standard mobile ad SDKs typically collect device-level information (advertising identifier, IP address, device model, OS version) for ad delivery and frequency capping. If you select Friend Control instead, no ads are shown.</p>
+  <p>If you opted into App Tracking on iOS, the ad provider may use that identifier for personalized ads. If you opted out (the default), only non-personalized ads are shown.</p>
+
+  <h2>4. What We Do Not Do</h2>
   <ul>
-    <li>We do not sell your data to anyone, ever.</li>
-    <li>We do not show ads.</li>
-    <li>We do not track you across other apps or websites.</li>
-    <li>We do not share your personal information with third parties, except as required by law.</li>
-    <li>We do not store your app usage data on our servers.</li>
+    <li>We do not sell your data.</li>
+    <li>We do not upload your screen time, usage data, or block attempts to our servers.</li>
+    <li>We do not share your personal information with third parties, except as required by law or as needed for the ad provider in the Self Control flow.</li>
+    <li>We do not show ads outside the Self Control override flow.</li>
   </ul>
 
-  <h2>3. Authentication</h2>
+  <h2>5. Authentication</h2>
   <p>We use Supabase to handle authentication. When you sign in, a one-time verification code is sent to your school email. Supabase stores your email address and session token on their servers. For details, see <a href="https://supabase.com/privacy" target="_blank">Supabase's privacy policy</a>.</p>
 
-  <h2>4. Data Security</h2>
+  <h2>6. Data Security</h2>
   <p>Your session token is stored using your device's encrypted secure storage. We use industry-standard practices to protect the data we do hold. However, no method of transmission over the internet or electronic storage is 100% secure.</p>
 
-  <h2>5. Data Retention</h2>
-  <p>Your account data (email and session) is retained until you request deletion. To delete your account and all associated data, contact us at the email below and we will process your request within 30 days.</p>
+  <h2>7. Data Retention</h2>
+  <p>Your account data (email and session) is retained until you request deletion. To delete your account and all associated data, contact us at the email below and we will process your request within 30 days. Data stored on your device (stats, block settings, attempts) is deleted when you uninstall the app.</p>
 
-  <h2>6. Children</h2>
-  <p>Student Focus is intended for users 13 years of age and older. We do not knowingly collect personal information from children under 13. If you believe a child under 13 has created an account, contact us and we will remove it.</p>
+  <h2>8. Children</h2>
+  <p>Student Focus is intended for students 13 years of age and older. We verify accounts via institutional school email addresses, which are typically not issued to children under 13. We do not knowingly collect personal information from children under 13. If you believe a child under 13 has created an account, contact us and we will remove it.</p>
 
-  <h2>7. Changes to This Policy</h2>
+  <h2>9. Changes to This Policy</h2>
   <p>We may update this privacy policy from time to time. We will update the "Last updated" date at the top when changes are made. Continued use of the app after changes constitutes acceptance.</p>
 
-  <h2>8. Contact</h2>
+  <h2>10. Contact</h2>
   <p>Questions about your data or requests for deletion? Email us at <a href="mailto:livefonam@gmail.com">livefonam@gmail.com</a></p>
 
   <p style="margin-top:48px"><a href="index.html">Back</a></p>
