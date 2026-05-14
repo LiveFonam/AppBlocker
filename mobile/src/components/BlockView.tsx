@@ -81,6 +81,7 @@ export function BlockView({
   bottomInset,
 }: Props) {
   const [draft, setDraft] = useState('')
+  const [addError, setAddError] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [customTitle, setCustomTitle] = useState('')
   const [customMinutes, setCustomMinutes] = useState(25)
@@ -103,6 +104,7 @@ export function BlockView({
 
   const requestToggleOff = (id: string) => {
     pendingActionRef.current = () => onToggle(id)
+    try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning) } catch (_) {}
     setGateVisible(true)
   }
 
@@ -143,11 +145,35 @@ export function BlockView({
     setCreateOpen(false)
   }
 
+  const resolveCatalogName = (raw: string): { match: string | null; suggestion: string | null } => {
+    const cleaned = raw.trim().toLowerCase()
+    if (!cleaned) return { match: null, suggestion: null }
+    for (const entry of CATALOG) {
+      if (entry.toLowerCase() === cleaned) return { match: entry, suggestion: null }
+    }
+    // Fuzzy: prefix match (e.g. "snap" matches "Snapchat") or contained-in match
+    for (const entry of CATALOG) {
+      const e = entry.toLowerCase()
+      if (e.startsWith(cleaned) || cleaned.startsWith(e) || e.includes(cleaned) || cleaned.includes(e)) {
+        return { match: null, suggestion: entry }
+      }
+    }
+    return { match: null, suggestion: null }
+  }
+
   const addCustomFromManage = () => {
-    const name = draft.trim()
-    if (!name) return
-    if (!byName.get(name.toLowerCase())) onAdd(name)
-    setDraft('')
+    const { match, suggestion } = resolveCatalogName(draft)
+    if (match) {
+      if (!byName.get(match.toLowerCase())) onAdd(match)
+      setDraft('')
+      setAddError('')
+      return
+    }
+    if (suggestion) {
+      setAddError(`Did you mean ${suggestion}? Tap "${suggestion}" in the catalog above.`)
+      return
+    }
+    setAddError('Not a known app. Pick one from the catalog above.')
   }
 
   return (
@@ -335,7 +361,7 @@ export function BlockView({
             <View style={styles.form}>
               <TextInput
                 value={draft}
-                onChangeText={setDraft}
+                onChangeText={(v) => { setDraft(v); if (addError) setAddError('') }}
                 placeholder="Other app or site"
                 placeholderTextColor={colors.muted3}
                 style={styles.input}
@@ -346,6 +372,9 @@ export function BlockView({
                 <Text style={styles.addLabel}>Add</Text>
               </Pressable>
             </View>
+            {!!addError && (
+              <Text style={{ color: '#ff453a', fontSize: 13, marginTop: 6, marginBottom: 4 }}>{addError}</Text>
+            )}
             <Text style={[styles.subLabel, { marginTop: 18 }]}>Your apps</Text>
             {targets.length === 0 ? (
               <Text style={styles.empty}>Nothing here yet. Use the field above or the catalog.</Text>

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { getOutgoingSecret } from './src/utils/friendControl'
 import { BottomNav } from './src/components/BottomNav'
 import { BlockView } from './src/components/BlockView'
 import { HomeView } from './src/components/HomeView'
@@ -58,6 +60,18 @@ type Props = {
 export default function Shell({ onReplaySetup }: Props) {
   const insets = useSafeAreaInsets()
   const [tab, setTab] = useState<TabId>('home')
+  const [autoOpenFriendPanel, setAutoOpenFriendPanel] = useState(false)
+
+  useEffect(() => {
+    (async () => {
+      const method = await AsyncStorage.getItem('@nova_override_method')
+      if (method !== 'friend') return
+      const existing = await getOutgoingSecret()
+      if (existing) return
+      setTab('settings')
+      setAutoOpenFriendPanel(true)
+    })()
+  }, [])
   const [data, setData] = useState<PersistedState | null>(null)
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null)
   const [now, setNow] = useState(() => Date.now())
@@ -288,6 +302,8 @@ export default function Shell({ onReplaySetup }: Props) {
               })
             }}
             onReplaySetup={onReplaySetup}
+            autoOpenFriendPanel={autoOpenFriendPanel}
+            onFriendPanelOpened={() => setAutoOpenFriendPanel(false)}
           />
         )}
       </View>

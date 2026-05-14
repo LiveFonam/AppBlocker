@@ -300,13 +300,6 @@ export function HomeView({
           </View>
         </View>
 
-        <View style={[styles.heroCard, styles.minCard]}>
-          <Text style={styles.heroSub}>{consistencyLabel(currentStreak)} consistency this week.</Text>
-          <Text style={styles.heroFoot}>
-            {daysInApp} {daysInApp === 1 ? 'day' : 'days'} in app
-          </Text>
-        </View>
-
         <Animated.View
           style={{
             opacity: lowerRevealOpacity,

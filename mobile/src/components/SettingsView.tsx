@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Alert,
   Pressable,
@@ -25,6 +25,8 @@ type Props = {
   onReset: () => void
   onReplaySetup: () => void
   bottomInset: number
+  autoOpenFriendPanel?: boolean
+  onFriendPanelOpened?: () => void
 }
 
 export function SettingsView({
@@ -33,11 +35,20 @@ export function SettingsView({
   onReset,
   onReplaySetup,
   bottomInset,
+  autoOpenFriendPanel,
+  onFriendPanelOpened,
 }: Props) {
   const [hoursDraft, setHoursDraft] = useState(
     String(Math.round((data.profile.reportedDailyPhoneMinutes / 60) * 10) / 10),
   )
   const [friendPanelOpen, setFriendPanelOpen] = useState(false)
+
+  useEffect(() => {
+    if (autoOpenFriendPanel) {
+      setFriendPanelOpen(true)
+      onFriendPanelOpened?.()
+    }
+  }, [autoOpenFriendPanel])
 
   const applyDailyAverage = () => {
     const h = parseFloat(hoursDraft.replace(',', '.'))

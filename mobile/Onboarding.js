@@ -502,7 +502,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
     <View key="s3" style={st.slide}>
       <Text style={[st.bigTitle, { textAlign: 'center', fontSize: 22 }]}>How much time do you{'\n'}think you use daily?</Text>
       <Text style={[st.sub, { textAlign: 'center' }]}>Scroll to your guess</Text>
-      <View style={{ height: 220, width: W, marginTop: 16, justifyContent: 'center' }}>
+      <View style={{ height: 220, width: W, marginLeft: -28, marginTop: 16, justifyContent: 'center' }}>
         <Animated.FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
