@@ -44,7 +44,7 @@ export function useAppBlocker() {
   const openAppPicker = useCallback(async (setShowAndroidPicker) => {
     if (Platform.OS === 'ios') {
       if (!Native) {
-        Alert.alert('Native Build Required', 'Run the app via Xcode — not Expo Go — to use the system app picker.');
+        Alert.alert('Native Build Required', 'Run the app via Xcode (not Expo Go) to use the system app picker.');
         return;
       }
       await Native.showAppPicker();

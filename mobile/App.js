@@ -6,10 +6,61 @@ import {
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Onboarding from './Onboarding';
+import Shell from './Shell';
 import { useAppBlocker } from './src/useAppBlocker';
 import { supabase } from './src/supabase';
+import { savePersisted, defaultWorkSchedule, seedScreenTimeFromReport } from './src/storage';
+
+const APP_NAME_BY_ID = {
+  tiktok: 'TikTok',
+  instagram: 'Instagram',
+  youtube: 'YouTube',
+  snapchat: 'Snapchat',
+  twitter: 'X (Twitter)',
+  discord: 'Discord',
+  reddit: 'Reddit',
+  facebook: 'Facebook',
+  netflix: 'Netflix',
+  spotify: 'Spotify',
+};
+
+function bridgeOnboardingToPersisted(config) {
+  const reported = 180;
+  const targets = (config.selectedApps || []).map((id) => ({
+    id,
+    name: APP_NAME_BY_ID[id] || id,
+    enabled: true,
+  }));
+  return {
+    profile: {
+      mainObjective: '',
+      longTermGoals: '',
+      shortTermGoals: '',
+      reportedDailyPhoneMinutes: reported,
+      age: null,
+      setupComplete: true,
+      onboardingDone: true,
+      setupCompletedAt: new Date().toISOString(),
+      hasSeenMainScrollIntro: false,
+    },
+    targets,
+    sessions: [],
+    dailyUsage: seedScreenTimeFromReport(reported, 35),
+    dailyFocusMinutes: [],
+    blockAttempts: 0,
+    blockFailed: 0,
+    workSchedule: {
+      startMinutes: config.startMins ?? 540,
+      endMinutes: config.endMins ?? 660,
+      daysActive: [true, true, true, true, true, false, false],
+      breaksAllowed: true,
+      vacationMode: false,
+    },
+  };
+}
 
 const { width: W } = Dimensions.get('window');
 
@@ -413,6 +464,30 @@ function SettingsSheet({ visible, onClose, blocker, blockTitle, endMins, onPrevi
               <Text style={{ color: C.white, fontSize: 15 }}>{email}</Text>
             </Card>
           ) : null}
+
+          {Platform.OS === 'ios' && (() => {
+            const parts = String(Platform.Version).split('.').map(Number);
+            const supported = parts[0] > 17 || (parts[0] === 17 && (parts[1] || 0) >= 4);
+            return (
+              <Card style={{ marginBottom: 20 }}>
+                <Label style={{ marginBottom: 4 }}>SCREEN TIME</Label>
+                {supported ? (
+                  <>
+                    <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginBottom: 10 }}>
+                      Connect your real Screen Time so the app uses your actual data.
+                    </Text>
+                    <TouchableOpacity onPress={() => Alert.alert('Coming Soon', 'Screen Time integration is coming in the next update.')}>
+                      <Text style={{ color: C.white, fontSize: 14, fontWeight: '600' }}>Connect Screen Time</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
+                    Requires iOS 17.4+. Update your iPhone and come back here to connect.
+                  </Text>
+                )}
+              </Card>
+            );
+          })()}
 
           <Card style={{ marginBottom: 14 }}>
             <Label style={{ marginBottom: 8 }}>ACCOUNTABILITY CODE</Label>
@@ -873,93 +948,25 @@ function App() {
           await AsyncStorage.setItem('@nova_app_state', JSON.stringify(next));
           if (config.email) await AsyncStorage.setItem('@nova_email', config.email);
           await AsyncStorage.setItem('@nova_onboarding_done', 'true');
+          try { await savePersisted(bridgeOnboardingToPersisted(config)); } catch (_) {}
           setOnboardingDone(true);
         }}
       />
     );
   }
 
+  // ── Main app (new w1 UI) ────
   return (
-    <NavigationContainer>
+    <SafeAreaProvider>
       <StatusBar barStyle="light-content" />
-
-      <Tab.Navigator
-        screenOptions={{
-          headerShown: false,
-          tabBarStyle: s.tabBar,
-          tabBarActiveTintColor: C.white,
-          tabBarInactiveTintColor: C.muted,
-          tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
-        }}
-      >
-        <Tab.Screen name="Insights">
-          {() => (
-            <InsightsScreen
-              state={appState}
-              blocker={blocker}
-              onManageBlock={handleManageBlock}
-              onSettings={() => setShowSettings(true)}
-            />
-          )}
-        </Tab.Screen>
-        <Tab.Screen name="Ideas" component={IdeasScreen} />
-      </Tab.Navigator>
-
-      {/* Modals */}
-      <TimeLockModal
-        visible={showTimeLock}
-        lockUntil={lockUntil}
-        onExpired={onLockExpired}
-        onCancel={() => { setShowTimeLock(false); AsyncStorage.removeItem('@nova_lock_until'); }}
-      />
-
-      <PinModal
-        visible={showPinModal}
-        onSuccess={async () => {
-          setShowPinModal(false);
-          const action = pendingAction.current;
-          pendingAction.current = null;
-          await action?.();
-        }}
-        onCancel={() => setShowPinModal(false)}
-      />
-
-      <BlockEditor
-        visible={showEditor}
-        state={appState}
-        setState={setAppState}
-        blocker={blocker}
-        onClose={() => setShowEditor(false)}
-        onSave={handleSave}
-        onStop={handleStopBlocking}
-      />
-
-      <SettingsSheet
-        visible={showSettings}
-        onClose={() => setShowSettings(false)}
-        blocker={blocker}
-        blockTitle={appState.blockTitle}
-        endMins={appState.endMinutes}
-        onPreviewBlock={() => { setShowSettings(false); setShowBlockedPreview(true); }}
-      />
-
-      <BlockedScreenModal
-        visible={showBlockedPreview}
-        blockTitle={appState.blockTitle}
-        endMins={appState.endMinutes}
-        appId="preview"
-        onClose={() => setShowBlockedPreview(false)}
-      />
-
-      {/* Toast */}
-      {toast && (
-        <View style={s.toast} pointerEvents="none">
-          <Text style={s.toastTxt}>{toast}</Text>
-        </View>
-      )}
-    </NavigationContainer>
+      <Shell onReplaySetup={async () => {
+        await AsyncStorage.removeItem('@nova_onboarding_done');
+        setOnboardingDone(false);
+      }} />
+    </SafeAreaProvider>
   );
 }
+
 
 const _App = App;
 export default function AppWithBoundary() {
