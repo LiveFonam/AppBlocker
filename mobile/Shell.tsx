@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getOutgoingSecret } from './src/utils/friendControl'
 import { BottomNav } from './src/components/BottomNav'
+import { Skeleton } from './src/components/Skeleton'
 import { BlockView } from './src/components/BlockView'
 import { HomeView } from './src/components/HomeView'
 import { SettingsView } from './src/components/SettingsView'
@@ -128,7 +129,18 @@ export default function Shell({ onReplaySetup }: Props) {
   }, [activeSession, now])
 
   if (!data) {
-    return <View style={styles.boot} />
+    return (
+      <View style={[styles.boot, { paddingTop: insets.top + 80, paddingHorizontal: 24 }]}>
+        <Skeleton width={120} height={14} style={{ marginBottom: 28 }} />
+        <Skeleton width="60%" height={28} style={{ marginBottom: 32 }} />
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+          <Skeleton width="48%" height={120} radius={16} />
+          <Skeleton width="48%" height={120} radius={16} />
+        </View>
+        <Skeleton width="100%" height={200} radius={16} style={{ marginBottom: 16 }} />
+        <Skeleton width="100%" height={120} radius={16} />
+      </View>
+    )
   }
 
   const enabledBlockCount = data.targets.filter((t) => t.enabled).length

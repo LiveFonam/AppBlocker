@@ -216,10 +216,10 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
     }
   }, [step]);
 
-  const goTo = (i) => {
+  const goTo = (i, animated = true) => {
     const n = Math.max(0, Math.min(TOTAL - 1, i));
     setStep(n);
-    outerRef.current?.scrollTo({ x: n * W, animated: true });
+    outerRef.current?.scrollTo({ x: n * W, animated });
     Animated.spring(progressAnim, {
       toValue: (n + 1) / TOTAL,
       tension: 60, friction: 12, useNativeDriver: false,
@@ -243,8 +243,14 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
     while (n > 0 && shouldSkip(n)) n--;
     return n;
   };
-  const next = () => goTo(nextValid(step));
-  const prev = () => goTo(prevValid(step));
+  const next = () => {
+    const target = nextValid(step);
+    goTo(target, target - step <= 1);
+  };
+  const prev = () => {
+    const target = prevValid(step);
+    goTo(target, step - target <= 1);
+  };
 
   const startResendCooldown = () => {
     cooldownEndsAtRef.current = Date.now() + 60_000;
@@ -755,14 +761,15 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
         onChangeText={setBlockName}
       />
 
-      <Text style={[st.sectionLbl, { marginTop: 28 }]}>TIME WINDOW</Text>
-      <Text style={[st.mutedNote, { textAlign: 'left', marginTop: 0, marginBottom: 8 }]}>Type a time like 9:00 AM or 21:30.</Text>
+      <Text style={[st.sectionLbl, { marginTop: 24 }]}>TIME WINDOW</Text>
+      <Text style={[st.mutedNote, { textAlign: 'left', marginTop: 0, marginBottom: 10 }]}>Type 9:00 AM, 21:30, or 9pm.</Text>
       <View style={st.timeRow}>
         <TextInput
-          style={[st.input, { flex: 1, textAlign: 'center', marginTop: 0 }]}
+          style={[st.input, { flex: 1, textAlign: 'center', marginTop: 0, fontSize: 15, paddingVertical: 12 }]}
           placeholder={tStr(startMins)}
           placeholderTextColor={O.muted}
-          value={startInput}
+          value={startInput || tStr(startMins)}
+          onFocus={() => setStartInput('')}
           onChangeText={setStartInput}
           onBlur={() => {
             const m = parseTimeStr(startInput);
@@ -774,10 +781,11 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
         />
         <Text style={st.timeSep}>to</Text>
         <TextInput
-          style={[st.input, { flex: 1, textAlign: 'center', marginTop: 0 }]}
+          style={[st.input, { flex: 1, textAlign: 'center', marginTop: 0, fontSize: 15, paddingVertical: 12 }]}
           placeholder={tStr(endMins)}
           placeholderTextColor={O.muted}
-          value={endInput}
+          value={endInput || tStr(endMins)}
+          onFocus={() => setEndInput('')}
           onChangeText={setEndInput}
           onBlur={() => {
             const m = parseTimeStr(endInput);
@@ -788,21 +796,8 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
           autoCapitalize="characters"
         />
       </View>
-      <View style={[st.timeRow, { marginTop: 8 }]}>
-        <View style={[st.timeBox, { flex: 1 }]}>
-          <TouchableOpacity onPress={() => setStartMins(m => Math.max(0, m - 15))}><Text style={st.timeAdj}>-</Text></TouchableOpacity>
-          <Text style={st.timeTxt}>{tStr(startMins)}</Text>
-          <TouchableOpacity onPress={() => setStartMins(m => Math.min(1425, m + 15))}><Text style={st.timeAdj}>+</Text></TouchableOpacity>
-        </View>
-        <View style={{ width: 24 }} />
-        <View style={[st.timeBox, { flex: 1 }]}>
-          <TouchableOpacity onPress={() => setEndMins(m => Math.max(15, m - 15))}><Text style={st.timeAdj}>-</Text></TouchableOpacity>
-          <Text style={st.timeTxt}>{tStr(endMins)}</Text>
-          <TouchableOpacity onPress={() => setEndMins(m => Math.min(1439, m + 15))}><Text style={st.timeAdj}>+</Text></TouchableOpacity>
-        </View>
-      </View>
 
-      <TouchableOpacity style={[st.btn, { marginTop: 36 }]} onPress={next}>
+      <TouchableOpacity style={[st.btn, { marginTop: 28 }]} onPress={next}>
         <Text style={st.btnTxt}>Continue</Text>
       </TouchableOpacity>
     </ScrollView>,
@@ -877,10 +872,25 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
           ].filter(Boolean).join(' · ');
           return (
             <View key={appId} style={[st.modeCard, { marginBottom: 12, padding: 0 }]}>
-              <TouchableOpacity onPress={() => setExpandedAppId(expanded ? null : appId)} style={{ padding: 16 }}>
-                <Text style={[st.modeTitle, { color: O.white, marginBottom: 4 }]}>{appName}</Text>
-                <Text style={st.modeSub}>{summary || 'Tap to configure'}</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TouchableOpacity onPress={() => setExpandedAppId(expanded ? null : appId)} style={{ flex: 1, padding: 16 }}>
+                  <Text style={[st.modeTitle, { color: O.white, marginBottom: 4 }]}>{appName}</Text>
+                  <Text style={st.modeSub}>{summary || 'Tap to configure'}</Text>
+                </TouchableOpacity>
+                {expanded && selectedApps.length > 1 && (
+                  <TouchableOpacity
+                    style={{ marginRight: 12, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: O.white }}
+                    onPress={() => {
+                      const baseCfg = perAppConfig[appId] || { startMins, endMins, dailyLimitMins };
+                      const next = {};
+                      selectedApps.forEach(id => { next[id] = { ...baseCfg }; });
+                      setPerAppConfig(next);
+                    }}
+                  >
+                    <Text style={{ color: O.white, fontSize: 11, fontWeight: '700' }}>Apply to all</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               {expanded && (
                 <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
                   {enforcementTypes.includes('block') && (
@@ -902,7 +912,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
                     </View>
                   )}
                   {enforcementTypes.includes('limit') && (
-                    <View style={{ marginTop: 16 }}>
+                    <View style={{ marginTop: enforcementTypes.includes('block') ? 20 : 8, borderTopWidth: enforcementTypes.includes('block') ? 1 : 0, borderTopColor: O.border, paddingTop: enforcementTypes.includes('block') ? 16 : 0 }}>
                       <Text style={st.sectionLbl}>DAILY LIMIT</Text>
                       <View style={{ alignItems: 'center', marginTop: 8 }}>
                         <TextInput
@@ -979,7 +989,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
           <Text style={[st.modeTitle, overrideMethod === 'friend' && { color: O.white }]}>Friend Control</Text>
-          <View style={{ marginLeft: 8, backgroundColor: O.green, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+          <View style={{ marginLeft: 8, marginTop: -4, backgroundColor: O.green, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
             <Text style={{ color: O.bg, fontSize: 10, fontWeight: '700' }}>MORE EFFECTIVE</Text>
           </View>
         </View>

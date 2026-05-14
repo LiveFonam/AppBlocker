@@ -84,25 +84,6 @@ export function SettingsView({
       </View>
 
       <View style={[styles.card, styles.minCard]}>
-        <Text style={styles.label}>Screen time average</Text>
-        <Text style={styles.body}>
-          iOS does not expose Screen Time to this app. Enter the daily average you see under
-          Settings ▸ Screen Time so charts match your real usage.
-        </Text>
-        <TextInput
-          value={hoursDraft}
-          onChangeText={setHoursDraft}
-          keyboardType="decimal-pad"
-          placeholder="Hours per day"
-          placeholderTextColor={colors.muted3}
-          style={styles.input}
-        />
-        <Pressable style={styles.primaryOutline} onPress={applyDailyAverage}>
-          <Text style={styles.primaryOutlineText}>Save & refresh charts</Text>
-        </Pressable>
-      </View>
-
-      <View style={[styles.card, styles.minCard]}>
         <Text style={styles.label}>iPhone blocking</Text>
         <Text style={[styles.body, { marginBottom: 16 }]}>
           App limits and Downtime are controlled by Apple in Settings. These open system screens when
