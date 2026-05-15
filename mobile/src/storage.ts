@@ -1,11 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import type {
+  BlockTarget,
   DayUsage,
   PersistedState,
   SessionEntry,
   UserProfile,
   WorkSchedule,
 } from './types'
+import { DEFAULT_DAILY_LIMIT_MIN, DEFAULT_SESSION_LIMIT_MIN } from './types'
 import { dateKey } from './utils/stats'
 
 /** Bump when persisted shape changes so dev installs don’t keep broken onboarding flags. */
@@ -58,15 +60,36 @@ export function defaultWorkSchedule(): WorkSchedule {
   }
 }
 
-function defaultTargets() {
+function defaultTargets(): BlockTarget[] {
+  const d = DEFAULT_DAILY_LIMIT_MIN
+  const s = DEFAULT_SESSION_LIMIT_MIN
   return [
-    { id: 'ig', name: 'Instagram', enabled: true },
-    { id: 'tt', name: 'TikTok', enabled: true },
-    { id: 'x', name: 'X (Twitter)', enabled: true },
-    { id: 'rd', name: 'Reddit', enabled: false },
-    { id: 'yt', name: 'YouTube', enabled: true },
-    { id: 'disc', name: 'Discord', enabled: false },
+    { id: 'ig', name: 'Instagram', enabled: true, dailyLimitMinutes: d, sessionLimitMinutes: s },
+    { id: 'tt', name: 'TikTok', enabled: true, dailyLimitMinutes: d, sessionLimitMinutes: s },
+    { id: 'x', name: 'X (Twitter)', enabled: true, dailyLimitMinutes: d, sessionLimitMinutes: s },
+    { id: 'rd', name: 'Reddit', enabled: false, dailyLimitMinutes: d, sessionLimitMinutes: s },
+    { id: 'yt', name: 'YouTube', enabled: true, dailyLimitMinutes: d, sessionLimitMinutes: s },
+    { id: 'disc', name: 'Discord', enabled: false, dailyLimitMinutes: d, sessionLimitMinutes: s },
   ]
+}
+
+function normalizeTargets(raw: unknown): BlockTarget[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((t: any) => t && typeof t.id === 'string' && typeof t.name === 'string')
+    .map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      enabled: t.enabled === true,
+      dailyLimitMinutes:
+        typeof t.dailyLimitMinutes === 'number' && t.dailyLimitMinutes > 0
+          ? t.dailyLimitMinutes
+          : DEFAULT_DAILY_LIMIT_MIN,
+      sessionLimitMinutes:
+        typeof t.sessionLimitMinutes === 'number' && t.sessionLimitMinutes > 0
+          ? t.sessionLimitMinutes
+          : DEFAULT_SESSION_LIMIT_MIN,
+    }))
 }
 
 /** First launch: no demo data until setup finishes. */
@@ -175,7 +198,7 @@ function migrate(raw: Record<string, unknown>): PersistedState {
         }
       : { ...minimal.profile }
 
-  const targets = Array.isArray(raw.targets) ? raw.targets : minimal.targets
+  const targets = Array.isArray(raw.targets) ? normalizeTargets(raw.targets) : minimal.targets
 
   let dailyFocusMinutes = Array.isArray(raw.dailyFocusMinutes)
     ? raw.dailyFocusMinutes

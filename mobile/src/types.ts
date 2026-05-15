@@ -21,7 +21,14 @@ export interface BlockTarget {
   id: string
   name: string
   enabled: boolean
+  /** Per-day usage budget (minutes). */
+  dailyLimitMinutes: number
+  /** Default focus-session length when this app is the focus (minutes). */
+  sessionLimitMinutes: number
 }
+
+export const DEFAULT_DAILY_LIMIT_MIN = 30
+export const DEFAULT_SESSION_LIMIT_MIN = 25
 
 export interface SessionEntry {
   id: string

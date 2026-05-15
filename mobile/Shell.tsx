@@ -18,6 +18,7 @@ import {
 } from './src/storage'
 import { colors } from './src/theme'
 import type { DayUsage, PersistedState, TabId } from './src/types'
+import { DEFAULT_DAILY_LIMIT_MIN, DEFAULT_SESSION_LIMIT_MIN } from './src/types'
 import { addOrMergeDaily, computeStreak, dateKey } from './src/utils/stats'
 import { daysInAppSince } from './src/utils/time'
 
@@ -236,6 +237,20 @@ export default function Shell({ onReplaySetup }: Props) {
                   : d,
               )
             }
+            onSetLimits={(id, daily, session) =>
+              setData((d) =>
+                d
+                  ? {
+                      ...d,
+                      targets: d.targets.map((x) =>
+                        x.id === id
+                          ? { ...x, dailyLimitMinutes: daily, sessionLimitMinutes: session }
+                          : x,
+                      ),
+                    }
+                  : d,
+              )
+            }
             onAdd={(name) =>
               setData((d) => {
                 if (!d) return d
@@ -244,7 +259,16 @@ export default function Shell({ onReplaySetup }: Props) {
                 if (d.targets.some((t) => t.name.trim().toLowerCase() === key)) return d
                 return {
                   ...d,
-                  targets: [...d.targets, { id: randomId(), name: name.trim(), enabled: true }],
+                  targets: [
+                    ...d.targets,
+                    {
+                      id: randomId(),
+                      name: name.trim(),
+                      enabled: true,
+                      dailyLimitMinutes: DEFAULT_DAILY_LIMIT_MIN,
+                      sessionLimitMinutes: DEFAULT_SESSION_LIMIT_MIN,
+                    },
+                  ],
                 }
               })
             }

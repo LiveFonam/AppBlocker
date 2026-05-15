@@ -19,7 +19,26 @@ let Haptics: any = null
 try { Haptics = require('expo-haptics') } catch (_) {}
 
 const HOLD_SECONDS = 10
-const ADS_SECONDS = 5 * 60
+const ADS_SECONDS = 4 * 60
+const GRACE_WINDOW_MS = 45 * 60 * 1000
+export const OVERRIDE_GRACE_KEY = '@nova_override_grace_until'
+
+export async function grantOverrideGrace(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(OVERRIDE_GRACE_KEY, String(Date.now() + GRACE_WINDOW_MS))
+  } catch (_) {}
+}
+
+export async function isInOverrideGrace(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(OVERRIDE_GRACE_KEY)
+    if (!raw) return false
+    const until = Number(raw)
+    return Number.isFinite(until) && Date.now() < until
+  } catch (_) {
+    return false
+  }
+}
 
 type Props = {
   visible: boolean
@@ -137,7 +156,7 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
       if (remaining <= 0) {
         clearInterval(adsTimerRef.current)
         adsTimerRef.current = null
-        onSuccess()
+        grantOverrideGrace().finally(() => onSuccess())
       }
     }, 250)
   }
@@ -154,6 +173,7 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
       return
     }
     if (verifyFriendCode(secret, cleaned)) {
+      await grantOverrideGrace()
       onSuccess()
     } else {
       setFriendErr('Code does not match. Ask your friend for the current one.')

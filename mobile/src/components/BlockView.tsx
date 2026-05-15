@@ -15,7 +15,7 @@ import {
 } from 'react-native'
 import type { BlockTarget } from '../types'
 import { cardRadius, colors, fonts, space } from '../theme'
-import { OverrideGate } from './OverrideGate'
+import { OverrideGate, isInOverrideGrace } from './OverrideGate'
 
 const CATALOG = [
   'Instagram',
@@ -52,6 +52,7 @@ type Props = {
   now: number
   onToggle: (id: string) => void
   onAdd: (name: string) => void
+  onSetLimits: (id: string, dailyMinutes: number, sessionMinutes: number) => void
   onStartSession: (minutes: number, title: string) => void
   onStopSessionEarly: () => void
   bottomInset: number
@@ -76,6 +77,7 @@ export function BlockView({
   now,
   onToggle,
   onAdd,
+  onSetLimits,
   onStartSession,
   onStopSessionEarly,
   bottomInset,
@@ -103,11 +105,23 @@ export function BlockView({
   const pendingActionRef = useRef<null | (() => void)>(null)
   const restoreModalRef = useRef<null | 'catalog' | 'manage'>(null)
 
-  const requestToggleOff = (id: string) => {
-    pendingActionRef.current = () => onToggle(id)
+  const [editingTarget, setEditingTarget] = useState<BlockTarget | null>(null)
+  const [draftDaily, setDraftDaily] = useState(30)
+  const [draftSession, setDraftSession] = useState(25)
+
+  const openEdit = (t: BlockTarget) => {
+    setEditingTarget(t)
+    setDraftDaily(t.dailyLimitMinutes)
+    setDraftSession(t.sessionLimitMinutes)
+  }
+
+  const cancelEdit = () => {
+    setEditingTarget(null)
+  }
+
+  const launchGate = (action: () => void) => {
+    pendingActionRef.current = action
     try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning) } catch (_) {}
-    // Close any open parent Modal first to avoid the iOS stacked-Modal bug
-    // where dismissing the inner Modal leaves the outer one non-interactive.
     if (manageOpen) {
       restoreModalRef.current = 'manage'
       setManageOpen(false)
@@ -120,6 +134,37 @@ export function BlockView({
       restoreModalRef.current = null
       setGateVisible(true)
     }
+  }
+
+  const saveLimits = async () => {
+    if (!editingTarget) return
+    const isLoosening =
+      draftDaily > editingTarget.dailyLimitMinutes ||
+      draftSession > editingTarget.sessionLimitMinutes
+    const commit = () => {
+      onSetLimits(editingTarget.id, draftDaily, draftSession)
+    }
+    if (!isLoosening) {
+      commit()
+      setEditingTarget(null)
+      return
+    }
+    if (await isInOverrideGrace()) {
+      commit()
+      setEditingTarget(null)
+      return
+    }
+    setEditingTarget(null)
+    launchGate(commit)
+  }
+
+  const requestToggleOff = async (id: string) => {
+    const action = () => onToggle(id)
+    if (await isInOverrideGrace()) {
+      action()
+      return
+    }
+    launchGate(action)
   }
 
   const finishGate = (runAction: boolean) => {
@@ -378,14 +423,80 @@ export function BlockView({
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={{ flex: 1 }}
         >
-        <Pressable style={styles.sheetBackdrop} onPress={() => setManageOpen(false)}>
+        <Pressable
+          style={styles.sheetBackdrop}
+          onPress={() => {
+            if (editingTarget) {
+              cancelEdit()
+            } else {
+              setManageOpen(false)
+            }
+          }}
+        >
           <Pressable style={styles.sheetCard} onPress={(e) => e.stopPropagation()}>
             <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>My block list</Text>
-              <Pressable onPress={() => setManageOpen(false)} hitSlop={12}>
-                <Text style={styles.sheetDone}>Done</Text>
-              </Pressable>
+              <Text style={styles.sheetTitle}>
+                {editingTarget ? `Edit ${editingTarget.name}` : 'My block list'}
+              </Text>
+              {editingTarget ? (
+                <Pressable onPress={cancelEdit} hitSlop={12}>
+                  <Text style={styles.sheetDone}>Cancel</Text>
+                </Pressable>
+              ) : (
+                <Pressable onPress={() => setManageOpen(false)} hitSlop={12}>
+                  <Text style={styles.sheetDone}>Done</Text>
+                </Pressable>
+              )}
             </View>
+            {editingTarget ? (
+              <View style={styles.editBody}>
+                <Text style={styles.sheetHint}>
+                  Lowering limits is free. Raising them runs the override gate (or skips it if
+                  you're inside the 45-minute grace window).
+                </Text>
+                <Text style={styles.editFieldLabel}>Daily allowance · {draftDaily} min</Text>
+                <Slider
+                  style={styles.modalSlider}
+                  minimumValue={5}
+                  maximumValue={240}
+                  step={5}
+                  value={draftDaily}
+                  onValueChange={setDraftDaily}
+                  minimumTrackTintColor={colors.text}
+                  maximumTrackTintColor={colors.outline}
+                  thumbTintColor={colors.text}
+                />
+                <Text style={[styles.editFieldLabel, { marginTop: 12 }]}>
+                  Session length · {draftSession} min
+                </Text>
+                <Slider
+                  style={styles.modalSlider}
+                  minimumValue={5}
+                  maximumValue={180}
+                  step={5}
+                  value={draftSession}
+                  onValueChange={setDraftSession}
+                  minimumTrackTintColor={colors.text}
+                  maximumTrackTintColor={colors.outline}
+                  thumbTintColor={colors.text}
+                />
+                <Text style={styles.editFooter}>
+                  {(draftDaily > editingTarget.dailyLimitMinutes ||
+                  draftSession > editingTarget.sessionLimitMinutes)
+                    ? 'Looser than current. Save will require the gate (unless grace is active).'
+                    : 'Same or stricter. Save is unrestricted.'}
+                </Text>
+                <View style={styles.modalActions}>
+                  <Pressable onPress={cancelEdit} style={styles.modalSecondary}>
+                    <Text style={styles.modalSecondaryText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable onPress={saveLimits} style={styles.modalPrimary}>
+                    <Text style={styles.modalPrimaryText}>Save</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              <>
             <Text style={styles.subLabel}>Custom name</Text>
             <View style={styles.form}>
               <TextInput
@@ -424,12 +535,19 @@ export function BlockView({
                       },
                     ]}
                   >
-                    <View style={{ flex: 1, marginRight: 16 }}>
+                    <Pressable
+                      onPress={() => openEdit(t)}
+                      style={{ flex: 1, marginRight: 16 }}
+                      hitSlop={6}
+                    >
                       <Text style={styles.rowTitle} numberOfLines={1}>
                         {t.name}
                       </Text>
-                      <Text style={styles.rowMeta}>{t.enabled ? 'On for sessions' : 'Off'}</Text>
-                    </View>
+                      <Text style={styles.rowMeta}>
+                        {t.dailyLimitMinutes} min/day · {t.sessionLimitMinutes} min session ·{' '}
+                        {t.enabled ? 'On' : 'Off'}
+                      </Text>
+                    </Pressable>
                     <Pressable
                       accessibilityRole="switch"
                       accessibilityState={{ checked: t.enabled }}
@@ -455,6 +573,8 @@ export function BlockView({
                   </View>
                 ))}
               </ScrollView>
+            )}
+              </>
             )}
           </Pressable>
         </Pressable>
@@ -906,5 +1026,23 @@ const styles = StyleSheet.create({
     ...fonts.semibold,
     fontSize: 15,
     color: colors.bg,
+  },
+  editBody: {
+    paddingTop: 4,
+  },
+  editFieldLabel: {
+    ...fonts.semibold,
+    fontSize: 11,
+    letterSpacing: 1,
+    color: colors.muted,
+    textTransform: 'uppercase',
+    marginTop: 12,
+  },
+  editFooter: {
+    ...fonts.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.muted2,
+    marginTop: 14,
   },
 })
