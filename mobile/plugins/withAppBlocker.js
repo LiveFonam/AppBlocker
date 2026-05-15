@@ -21,6 +21,11 @@ const path = require('path');
 // ── iOS ────────────────────────────────────────────────────────────────────────
 
 function withIosModule(config) {
+  // iOS bridging is intentionally a no-op until the FamilyControls entitlement
+  // is restored and AppBlockerModule.swift is un-stubbed.
+  // See RESTORE_BEFORE_RELEASE.md for the un-gating steps.
+  return config
+  // eslint-disable-next-line no-unreachable
   return withXcodeProject(config, (modConfig) => {
     const project     = modConfig.modResults;
     const projName    = modConfig.modRequest.projectName;

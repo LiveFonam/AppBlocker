@@ -207,6 +207,24 @@ export async function claimPairingBySecret(secret: string): Promise<SupabasePair
   }
 }
 
+/** Subject side: list every pairing row this user owns (history + pending). Newest first. */
+export async function listAllPairings(): Promise<SupabasePairing[]> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+    const { data, error } = await supabase
+      .from('friend_pairings')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (error || !data) return []
+    return data as SupabasePairing[]
+  } catch {
+    return []
+  }
+}
+
 /** Subject side: list pending approval requests (friend assigned but not yet approved). */
 export async function listPendingApprovals(): Promise<SupabasePairing[]> {
   try {

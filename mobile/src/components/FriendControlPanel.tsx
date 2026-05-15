@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { cardRadius, colors, fonts, space } from '../theme'
 import {
   addIncomingFriend,
+  approvePairing,
   buildShareText,
   claimPairingBySecret,
   computeFriendCode,
@@ -23,11 +24,15 @@ import {
   formatSecretForDisplay,
   getIncomingFriends,
   getOutgoingSecret,
+  listAllPairings,
   msUntilNextRotation,
   parseShareText,
   registerOutgoingPairing,
+  rejectPairing,
   removeIncomingFriend,
+  subscribeToIncomingPairings,
   type IncomingFriend,
+  type SupabasePairing,
 } from '../utils/friendControl'
 
 type Props = {
@@ -52,6 +57,8 @@ export function FriendControlPanel({ visible, onClose }: Props) {
   const [copyToast, setCopyToast] = useState('')
   const [pasteToast, setPasteToast] = useState('')
   const [incoming, setIncoming] = useState<IncomingFriend[]>([])
+  const [pairings, setPairings] = useState<SupabasePairing[]>([])
+  const [actingId, setActingId] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const timerRef = useRef<any>(null)
 
@@ -59,6 +66,7 @@ export function FriendControlPanel({ visible, onClose }: Props) {
     if (!visible) return
     getOutgoingSecret().then(setOutgoingSecret)
     getIncomingFriends().then(setIncoming)
+    listAllPairings().then(setPairings)
     setPasteInput('')
     setFriendNameInput('')
     setPasteErr('')
@@ -66,9 +74,41 @@ export function FriendControlPanel({ visible, onClose }: Props) {
 
   useEffect(() => {
     if (!visible) return
+    const unsub = subscribeToIncomingPairings(() => {
+      listAllPairings().then(setPairings)
+    })
+    return unsub
+  }, [visible])
+
+  useEffect(() => {
+    if (!visible) return
     timerRef.current = setInterval(() => setNow(Date.now()), 1000)
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [visible])
+
+  const handleApprovePairing = async (id: string) => {
+    setActingId(id)
+    await approvePairing(id)
+    setPairings(await listAllPairings())
+    setActingId(null)
+  }
+
+  const handleRejectPairing = async (id: string) => {
+    setActingId(id)
+    await rejectPairing(id)
+    setPairings(await listAllPairings())
+    setActingId(null)
+  }
+
+  const pairingStatus = (p: SupabasePairing): 'pending' | 'approved' | 'rejected' | 'open' => {
+    if (p.revoked_at) return 'rejected'
+    if (p.approved_at) return 'approved'
+    if (p.friend_user_id) return 'pending'
+    return 'open' // Person A generated/shared but no friend has claimed yet
+  }
+
+  const visibleInbox = pairings.filter((p) => pairingStatus(p) !== 'open')
+  const pendingCount = pairings.filter((p) => pairingStatus(p) === 'pending').length
 
   const handleGenerate = async () => {
     const secret = await ensureOutgoingSecret()
@@ -221,6 +261,64 @@ export function FriendControlPanel({ visible, onClose }: Props) {
                 only useful to one friend who pastes it into their copy of Student Focus, and you
                 still have to approve them on this phone first.
               </Text>
+
+              <View style={styles.inboxHeader}>
+                <Text style={styles.inboxTitle}>Incoming requests</Text>
+                {pendingCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{pendingCount}</Text>
+                  </View>
+                )}
+              </View>
+              {visibleInbox.length === 0 ? (
+                <Text style={styles.inboxEmpty}>
+                  No friends have used your code yet.
+                </Text>
+              ) : (
+                visibleInbox.map((p) => {
+                  const status = pairingStatus(p)
+                  const friendTag = p.friend_user_id
+                    ? `Friend …${p.friend_user_id.slice(-4)}`
+                    : 'Friend'
+                  const created = new Date(p.created_at)
+                  const acting = actingId === p.id
+                  return (
+                    <View key={p.id} style={styles.inboxRow}>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.inboxRowTitle} numberOfLines={1}>{friendTag}</Text>
+                        <Text style={styles.inboxRowMeta}>
+                          {created.toLocaleString()}
+                        </Text>
+                        <View style={styles.inboxStatusRow}>
+                          <View style={[styles.statusPill, status === 'pending' && styles.statusPillPending, status === 'approved' && styles.statusPillApproved, status === 'rejected' && styles.statusPillRejected]}>
+                            <Text style={[styles.statusPillText, status === 'pending' && styles.statusPillTextPending, status === 'approved' && styles.statusPillTextApproved, status === 'rejected' && styles.statusPillTextRejected]}>
+                              {status === 'pending' ? 'Pending' : status === 'approved' ? 'Approved' : 'Rejected'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                      {status === 'pending' && (
+                        <View style={styles.inboxActions}>
+                          <Pressable
+                            onPress={() => handleApprovePairing(p.id)}
+                            disabled={acting}
+                            style={[styles.approveSmall, acting && { opacity: 0.4 }]}
+                          >
+                            <Text style={styles.approveSmallLabel}>Approve</Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => handleRejectPairing(p.id)}
+                            disabled={acting}
+                            style={[styles.rejectSmall, acting && { opacity: 0.4 }]}
+                          >
+                            <Text style={styles.rejectSmallLabel}>Reject</Text>
+                          </Pressable>
+                        </View>
+                      )}
+                    </View>
+                  )
+                })
+              )}
             </View>
           ) : (
             <View>
@@ -392,4 +490,71 @@ const styles = StyleSheet.create({
   friendName: { color: colors.muted, fontSize: 13, marginBottom: 4 },
   friendCode: { color: colors.text, fontSize: 32, ...fonts.bold, letterSpacing: 6 },
   removeLabel: { color: '#ff453a', fontSize: 13 },
+  inboxHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 28,
+    marginBottom: 12,
+    gap: 8,
+  },
+  inboxTitle: { color: colors.text, fontSize: 16, ...fonts.semibold },
+  badge: {
+    backgroundColor: '#ff9f0a',
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: { color: '#000', fontSize: 12, ...fonts.bold },
+  inboxEmpty: { color: colors.muted2, fontSize: 13, lineHeight: 19 },
+  inboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#111',
+    borderRadius: cardRadius,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
+    gap: 10,
+  },
+  inboxRowTitle: { color: colors.text, fontSize: 14, ...fonts.semibold },
+  inboxRowMeta: { color: colors.muted, fontSize: 11, marginTop: 2 },
+  inboxStatusRow: { flexDirection: 'row', marginTop: 6 },
+  statusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: '#222',
+  },
+  statusPillPending: { backgroundColor: 'rgba(255,159,10,0.18)' },
+  statusPillApproved: { backgroundColor: 'rgba(48,209,88,0.18)' },
+  statusPillRejected: { backgroundColor: 'rgba(255,69,58,0.18)' },
+  statusPillText: { color: colors.muted, fontSize: 10, ...fonts.semibold, letterSpacing: 0.6, textTransform: 'uppercase' },
+  statusPillTextPending: { color: '#ff9f0a' },
+  statusPillTextApproved: { color: '#30d158' },
+  statusPillTextRejected: { color: '#ff453a' },
+  inboxActions: { flexDirection: 'column', gap: 6, alignItems: 'flex-end' },
+  approveSmall: {
+    backgroundColor: '#30d158',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    minWidth: 78,
+    alignItems: 'center',
+  },
+  approveSmallLabel: { color: '#000', fontSize: 12, ...fonts.semibold },
+  rejectSmall: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    minWidth: 78,
+    alignItems: 'center',
+  },
+  rejectSmallLabel: { color: colors.text, fontSize: 12, ...fonts.semibold },
 })

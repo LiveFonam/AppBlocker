@@ -59,6 +59,8 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
   const adsTimerRef = useRef<any>(null)
   const holdingRef = useRef(false)
   const adsHapticMinuteRef = useRef(0)
+  const iosVibIntervalRef = useRef<any>(null)
+  const lastHapticAtRef = useRef<number>(0)
 
   useEffect(() => {
     if (!visible) return
@@ -82,6 +84,10 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
     if (adsTimerRef.current) {
       clearInterval(adsTimerRef.current)
       adsTimerRef.current = null
+    }
+    if (iosVibIntervalRef.current) {
+      clearInterval(iosVibIntervalRef.current)
+      iosVibIntervalRef.current = null
     }
     Vibration.cancel()
     setHoldProgress(0)
@@ -110,7 +116,20 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
   const startHold = () => {
     if (stage !== 'hold') return
     holdingRef.current = true
-    Vibration.vibrate([0, 80, 120, 80], true)
+    lastHapticAtRef.current = 0
+
+    // Continuous baseline buzz for the full hold. iOS vibration is fixed ~400ms
+    // per call, so re-trigger it on a 400ms interval to keep it going.
+    if (Platform.OS === 'android') {
+      Vibration.vibrate(HOLD_SECONDS * 1000)
+    } else {
+      Vibration.vibrate()
+      iosVibIntervalRef.current = setInterval(() => {
+        if (!holdingRef.current) return
+        Vibration.vibrate()
+      }, 400)
+    }
+
     if (holdTimerRef.current) clearInterval(holdTimerRef.current)
     const startedAt = Date.now()
     holdTimerRef.current = setInterval(() => {
@@ -118,11 +137,39 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
       const elapsed = (Date.now() - startedAt) / 1000
       const p = Math.min(1, elapsed / HOLD_SECONDS)
       setHoldProgress(p)
+
+      // Layer haptic punches at increasing frequency over the baseline buzz.
+      // Smoothly interpolated 800ms -> 80ms across the hold for a "rising" feel.
+      const targetIntervalMs = 800 - p * 720
+      const nowMs = Date.now()
+      if (nowMs - lastHapticAtRef.current >= targetIntervalMs) {
+        lastHapticAtRef.current = nowMs
+        try {
+          if (Haptics && Haptics.impactAsync && Haptics.ImpactFeedbackStyle) {
+            const style = p < 0.4
+              ? Haptics.ImpactFeedbackStyle.Light
+              : p < 0.75
+                ? Haptics.ImpactFeedbackStyle.Medium
+                : Haptics.ImpactFeedbackStyle.Heavy
+            Haptics.impactAsync(style)
+          }
+        } catch (_) {}
+      }
+
       if (p >= 1) {
         clearInterval(holdTimerRef.current)
         holdTimerRef.current = null
         holdingRef.current = false
+        if (iosVibIntervalRef.current) {
+          clearInterval(iosVibIntervalRef.current)
+          iosVibIntervalRef.current = null
+        }
         Vibration.cancel()
+        try {
+          if (Haptics && Haptics.notificationAsync && Haptics.NotificationFeedbackType) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+          }
+        } catch (_) {}
         beginAds()
       }
     }, 50)
@@ -131,6 +178,10 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
   const stopHold = () => {
     holdingRef.current = false
     Vibration.cancel()
+    if (iosVibIntervalRef.current) {
+      clearInterval(iosVibIntervalRef.current)
+      iosVibIntervalRef.current = null
+    }
     if (holdTimerRef.current) {
       clearInterval(holdTimerRef.current)
       holdTimerRef.current = null

@@ -10,44 +10,50 @@ import {
 } from '../utils/friendControl'
 
 export function ApprovalBanner() {
-  const [pending, setPending] = useState<SupabasePairing | null>(null)
+  const [queue, setQueue] = useState<SupabasePairing[]>([])
   const seenIds = useRef(new Set<string>())
 
-  useEffect(() => {
-    // Poll once on mount for any pending requests that arrived while the app was closed
-    listPendingApprovals().then((rows) => {
-      const first = rows.find((r) => !seenIds.current.has(r.id))
-      if (first) {
-        seenIds.current.add(first.id)
-        setPending(first)
-        try { Vibration.vibrate(120) } catch (_) {}
-      }
-    })
+  const enqueue = (row: SupabasePairing) => {
+    if (seenIds.current.has(row.id)) return
+    seenIds.current.add(row.id)
+    setQueue((q) => [...q, row])
+    try { Vibration.vibrate(120) } catch (_) {}
+  }
 
-    // Realtime updates while app is open
+  useEffect(() => {
+    listPendingApprovals().then((rows) => {
+      rows.forEach(enqueue)
+    })
     const unsubscribe = subscribeToIncomingPairings((row) => {
-      if (seenIds.current.has(row.id)) return
-      seenIds.current.add(row.id)
-      setPending(row)
-      try { Vibration.vibrate(120) } catch (_) {}
+      enqueue(row)
     })
     return unsubscribe
   }, [])
 
+  const pending = queue[0] ?? null
   if (!pending) return null
+
+  const advance = () => {
+    setQueue((q) => q.slice(1))
+  }
 
   const approve = async () => {
     await approvePairing(pending.id)
-    setPending(null)
+    advance()
   }
 
   const reject = async () => {
     await rejectPairing(pending.id)
-    setPending(null)
+    advance()
+  }
+
+  // Dismiss only — keep the pending row in the inbox so it can be decided later.
+  const decideLater = () => {
+    advance()
   }
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={reject}>
+    <Modal visible transparent animationType="fade" onRequestClose={decideLater}>
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <Text style={styles.title}>Approve accountability friend?</Text>
@@ -56,11 +62,19 @@ export function ApprovalBanner() {
             them the code on purpose. Once approved, they can generate rotating codes to unlock your
             apps when you ask them.
           </Text>
+          {queue.length > 1 && (
+            <Text style={styles.queueHint}>
+              {queue.length - 1} more {queue.length - 1 === 1 ? 'request' : 'requests'} after this one.
+            </Text>
+          )}
           <Pressable onPress={approve} style={styles.approveBtn}>
             <Text style={styles.approveLabel}>Approve</Text>
           </Pressable>
           <Pressable onPress={reject} style={styles.rejectBtn}>
             <Text style={styles.rejectLabel}>Reject</Text>
+          </Pressable>
+          <Pressable onPress={decideLater} style={styles.laterBtn}>
+            <Text style={styles.laterLabel}>Decide later</Text>
           </Pressable>
         </View>
       </View>
@@ -83,7 +97,8 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   title: { color: colors.text, fontSize: 20, ...fonts.semibold, marginBottom: 8 },
-  body: { color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 20 },
+  body: { color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 16 },
+  queueHint: { color: colors.muted2, fontSize: 12, marginBottom: 16, fontStyle: 'italic' },
   approveBtn: {
     backgroundColor: '#30d158',
     paddingVertical: 14,
@@ -98,6 +113,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.outline,
+    marginBottom: 8,
   },
   rejectLabel: { color: colors.text, ...fonts.semibold, fontSize: 14 },
+  laterBtn: { alignSelf: 'center', paddingVertical: 8 },
+  laterLabel: { color: colors.muted, fontSize: 13 },
 })

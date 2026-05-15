@@ -85,7 +85,7 @@ export function StatsView({ data, onOpenSettings, bottomInset }: Props) {
   const onShare = async () => {
     try {
       await Share.share({
-        message: "Check out Student Focus, a free app blocker for students. https://livefonam.github.io/AppBlocker/",
+        message: "Found a free app blocker for students. [app store link here]",
       })
     } catch (_) {}
   }

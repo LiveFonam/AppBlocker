@@ -9,6 +9,7 @@ mobile/build/
 
 # EAS credentials (NEVER commit these)
 mobile/credentials.json
+mobile/play-service-account.json
 *.p8
 *.p12
 *.mobileprovision
