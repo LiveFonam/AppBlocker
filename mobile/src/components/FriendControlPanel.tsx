@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -9,17 +10,22 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import * as Clipboard from 'expo-clipboard'
+import { Ionicons } from '@expo/vector-icons'
 import { cardRadius, colors, fonts, space } from '../theme'
 import {
   addIncomingFriend,
   buildShareText,
+  claimPairingBySecret,
   computeFriendCode,
   currentHourBucket,
   ensureOutgoingSecret,
+  formatSecretForDisplay,
   getIncomingFriends,
   getOutgoingSecret,
   msUntilNextRotation,
   parseShareText,
+  registerOutgoingPairing,
   removeIncomingFriend,
   type IncomingFriend,
 } from '../utils/friendControl'
@@ -43,6 +49,8 @@ export function FriendControlPanel({ visible, onClose }: Props) {
   const [pasteInput, setPasteInput] = useState('')
   const [friendNameInput, setFriendNameInput] = useState('')
   const [pasteErr, setPasteErr] = useState('')
+  const [copyToast, setCopyToast] = useState('')
+  const [pasteToast, setPasteToast] = useState('')
   const [incoming, setIncoming] = useState<IncomingFriend[]>([])
   const [now, setNow] = useState(() => Date.now())
   const timerRef = useRef<any>(null)
@@ -62,13 +70,56 @@ export function FriendControlPanel({ visible, onClose }: Props) {
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [visible])
 
-  const handleGenerateAndShare = async () => {
+  const handleGenerate = async () => {
     const secret = await ensureOutgoingSecret()
     setOutgoingSecret(secret)
+    // Register the pairing in Supabase so a friend can claim it later
+    await registerOutgoingPairing(secret)
+  }
+
+  const handleShare = async () => {
+    const secret = await ensureOutgoingSecret()
+    setOutgoingSecret(secret)
+    await registerOutgoingPairing(secret)
     try {
-      await Share.share({
-        message: `${buildShareText(secret)}\n\nI'm using Student Focus and asked you to be my accountability friend. Open the app, go to Settings, Friend Control, "Help a Friend", and paste this code.`,
-      })
+      await Share.share({ message: buildShareText(secret) })
+    } catch (_) {}
+  }
+
+  const handleCopyCode = async () => {
+    if (!outgoingSecret) return
+    try {
+      await Clipboard.setStringAsync(formatSecretForDisplay(outgoingSecret))
+      setCopyToast('Code copied')
+      setTimeout(() => setCopyToast(''), 1800)
+    } catch (_) {}
+  }
+
+  const handleSmsShare = async () => {
+    const secret = await ensureOutgoingSecret()
+    setOutgoingSecret(secret)
+    await registerOutgoingPairing(secret)
+    const body = encodeURIComponent(buildShareText(secret))
+    try { await Linking.openURL(`sms:?&body=${body}`) } catch (_) {}
+  }
+
+  const handleWhatsappShare = async () => {
+    const secret = await ensureOutgoingSecret()
+    setOutgoingSecret(secret)
+    await registerOutgoingPairing(secret)
+    const body = encodeURIComponent(buildShareText(secret))
+    try { await Linking.openURL(`whatsapp://send?text=${body}`) } catch (_) {}
+  }
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      const text = await Clipboard.getStringAsync()
+      if (text) {
+        setPasteInput(text)
+        setPasteErr('')
+        setPasteToast('Pasted')
+        setTimeout(() => setPasteToast(''), 1500)
+      }
     } catch (_) {}
   }
 
@@ -80,6 +131,8 @@ export function FriendControlPanel({ visible, onClose }: Props) {
     }
     setPasteErr('')
     const name = friendNameInput.trim() || parsed.from || 'Friend'
+    // Claim the pairing on Supabase so the subject can approve. Don't fail locally if Supabase is offline.
+    await claimPairingBySecret(parsed.secret)
     await addIncomingFriend(parsed.secret, name)
     setIncoming(await getIncomingFriends())
     setPasteInput('')
@@ -124,20 +177,49 @@ export function FriendControlPanel({ visible, onClose }: Props) {
             <View>
               <Text style={styles.sectionBody}>
                 Share a one-time code with a friend you trust. They will be able to generate rotating
-                hourly codes to unlock your apps when you ask them.
+                hourly codes to unlock your apps when you ask them. You will see an in-app prompt
+                to approve them before they get any control.
               </Text>
               <View style={styles.codeBox}>
-                <Text style={styles.codeLabel}>Your invite code</Text>
-                <Text style={styles.codeValue}>{outgoingSecret || 'Not set up yet'}</Text>
-              </View>
-              <Pressable onPress={handleGenerateAndShare} style={styles.primaryBtn}>
-                <Text style={styles.primaryLabel}>
-                  {outgoingSecret ? 'Share with friend' : 'Generate and share'}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={styles.codeLabel}>Your invite code</Text>
+                  {outgoingSecret && (
+                    <Pressable onPress={handleCopyCode} hitSlop={10} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="copy-outline" size={16} color={colors.text} />
+                      <Text style={{ color: colors.text, fontSize: 12, marginLeft: 4, fontWeight: '600' }}>{copyToast || 'Copy'}</Text>
+                    </Pressable>
+                  )}
+                </View>
+                <Text style={styles.codeValue}>
+                  {outgoingSecret ? formatSecretForDisplay(outgoingSecret) : 'Not set up yet'}
                 </Text>
-              </Pressable>
+              </View>
+              {!outgoingSecret && (
+                <Pressable onPress={handleGenerate} style={styles.primaryBtn}>
+                  <Text style={styles.primaryLabel}>Generate code</Text>
+                </Pressable>
+              )}
+              {outgoingSecret && (
+                <>
+                  <Pressable onPress={handleShare} style={styles.primaryBtn}>
+                    <Text style={styles.primaryLabel}>Share via...</Text>
+                  </Pressable>
+                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                    <Pressable onPress={handleSmsShare} style={[styles.quickBtn, { flex: 1 }]}>
+                      <Ionicons name="chatbubble-outline" size={18} color={colors.text} />
+                      <Text style={styles.quickBtnLabel}>SMS</Text>
+                    </Pressable>
+                    <Pressable onPress={handleWhatsappShare} style={[styles.quickBtn, { flex: 1 }]}>
+                      <Ionicons name="logo-whatsapp" size={18} color={colors.text} />
+                      <Text style={styles.quickBtnLabel}>WhatsApp</Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
               <Text style={styles.hint}>
-                Send it via iMessage, WhatsApp, whatever. The code is only useful to one friend who
-                pastes it into their copy of Student Focus.
+                Send it via iMessage, WhatsApp, Discord, Instagram, WeChat, whatever. The code is
+                only useful to one friend who pastes it into their copy of Student Focus, and you
+                still have to approve them on this phone first.
               </Text>
             </View>
           ) : (
@@ -153,16 +235,22 @@ export function FriendControlPanel({ visible, onClose }: Props) {
                 placeholder="Friend's name (optional)"
                 placeholderTextColor={colors.muted}
               />
-              <TextInput
-                style={[styles.input, pasteErr ? styles.inputErr : null]}
-                value={pasteInput}
-                onChangeText={v => { setPasteInput(v); setPasteErr('') }}
-                placeholder="Paste nfocus-XXXX..."
-                placeholderTextColor={colors.muted}
-                autoCapitalize="characters"
-                autoCorrect={false}
-              />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <TextInput
+                  style={[styles.input, pasteErr ? styles.inputErr : null, { flex: 1, marginBottom: 0 }]}
+                  value={pasteInput}
+                  onChangeText={v => { setPasteInput(v); setPasteErr('') }}
+                  placeholder="Paste invite code"
+                  placeholderTextColor={colors.muted}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                />
+                <Pressable onPress={handlePasteFromClipboard} hitSlop={10} style={styles.iconBtn}>
+                  <Ionicons name="clipboard-outline" size={18} color={colors.text} />
+                </Pressable>
+              </View>
               {!!pasteErr && <Text style={styles.errLabel}>{pasteErr}</Text>}
+              {!!pasteToast && <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 8 }}>{pasteToast}</Text>}
               <Pressable
                 onPress={handleAcceptPaste}
                 style={[styles.primaryBtn, !pasteInput.trim() && styles.primaryBtnDisabled]}
@@ -249,6 +337,25 @@ const styles = StyleSheet.create({
   },
   primaryBtnDisabled: { opacity: 0.4 },
   primaryLabel: { color: '#000', ...fonts.semibold, fontSize: 16 },
+  quickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    backgroundColor: '#111',
+  },
+  quickBtnLabel: { color: colors.text, fontSize: 14, ...fonts.semibold },
+  iconBtn: {
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    backgroundColor: '#111',
+  },
   hint: { color: colors.muted3, fontSize: 12, lineHeight: 18, marginTop: 4 },
   input: {
     backgroundColor: '#111',

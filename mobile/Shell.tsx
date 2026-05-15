@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getOutgoingSecret } from './src/utils/friendControl'
 import { BottomNav } from './src/components/BottomNav'
 import { Skeleton } from './src/components/Skeleton'
+import { ApprovalBanner } from './src/components/ApprovalBanner'
 import { BlockView } from './src/components/BlockView'
 import { HomeView } from './src/components/HomeView'
 import { SettingsView } from './src/components/SettingsView'
@@ -320,6 +321,7 @@ export default function Shell({ onReplaySetup }: Props) {
         )}
       </View>
       <BottomNav active={tab} onChange={setTab} />
+      <ApprovalBanner />
     </View>
   )
 }

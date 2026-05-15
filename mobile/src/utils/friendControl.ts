@@ -1,11 +1,20 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { supabase } from '../supabase'
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no I/O/0/1 to avoid confusion
 const SECRET_LEN = 16
-const TAG = 'nfocus-' // share text prefix so we can recognize the format
 
 const KEY_OUTGOING = '@nova_friend_secret_outgoing' // secret YOU share with your friend (so they can control your blocks)
 const KEY_INCOMING = '@nova_friend_secrets_incoming' // array of secrets shared WITH you (the friends you control)
+
+export function formatSecretForDisplay(secret: string): string {
+  // ABCD-EFGH-IJKL-MNOP
+  return secret.replace(/(.{4})(?=.)/g, '$1-')
+}
+
+export function stripDashes(s: string): string {
+  return s.replace(/[\s-]/g, '').toUpperCase()
+}
 
 export type IncomingFriend = {
   pairId: string
@@ -24,20 +33,18 @@ export function generateSecret(): string {
   return s
 }
 
-export function buildShareText(secret: string, userLabel?: string): string {
-  const labelPart = userLabel ? `?from=${encodeURIComponent(userLabel)}` : ''
-  return `${TAG}${secret}${labelPart}`
+export function buildShareText(secret: string, _userLabel?: string): string {
+  const display = formatSecretForDisplay(secret)
+  return `Take control of my Student Focus app. Code:\n\n${display}\n\nOpen Student Focus, go to Settings, Friend Control, "Help a friend", and paste this code.`
 }
 
 export function parseShareText(input: string): { secret: string; from?: string } | null {
-  const trimmed = (input || '').trim()
-  if (!trimmed) return null
-  // Accept either a bare secret (just the SECRET_LEN-char string) or the full tagged form
-  const directMatch = trimmed.match(/^[A-Z0-9]{16}$/)
-  if (directMatch) return { secret: trimmed }
-  const taggedMatch = trimmed.match(/nfocus-([A-Z0-9]{16})(?:\?from=([^&\s]+))?/i)
-  if (!taggedMatch) return null
-  return { secret: taggedMatch[1].toUpperCase(), from: taggedMatch[2] ? decodeURIComponent(taggedMatch[2]) : undefined }
+  const stripped = stripDashes(input || '')
+  if (!stripped) return null
+  // Find the first 16-char A-Z0-9 run after dashes are stripped
+  const match = stripped.match(/([A-Z0-9]{16})/)
+  if (!match) return null
+  return { secret: match[1] }
 }
 
 /**
@@ -125,4 +132,132 @@ export async function removeIncomingFriend(pairId: string): Promise<void> {
 export function msUntilNextRotation(now: number = Date.now()): number {
   const next = (Math.floor(now / 3_600_000) + 1) * 3_600_000
   return next - now
+}
+
+// ---------- Supabase pairing flow (real-time approval) ----------
+
+export type SupabasePairing = {
+  id: string
+  user_id: string
+  friend_user_id: string | null
+  secret: string
+  approved_at: string | null
+  revoked_at: string | null
+  created_at: string
+}
+
+/** Subject side: register the secret in Supabase as an open pairing slot. */
+export async function registerOutgoingPairing(secret: string): Promise<void> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    // Use upsert with onConflict to be idempotent if the user regenerates
+    await supabase.from('friend_pairings').upsert(
+      { user_id: user.id, secret, friend_user_id: null, approved_at: null, revoked_at: null },
+      { onConflict: 'user_id' }
+    )
+  } catch (_) {}
+}
+
+/** Friend side: claim a pending pairing by matching secret. Returns the row or null. */
+export async function claimPairingBySecret(secret: string): Promise<SupabasePairing | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return null
+    // Find pairing with matching secret that has no friend yet
+    const { data: rows, error } = await supabase
+      .from('friend_pairings')
+      .select('*')
+      .eq('secret', secret)
+      .is('friend_user_id', null)
+      .is('revoked_at', null)
+      .limit(1)
+    if (error || !rows || rows.length === 0) return null
+    const row = rows[0]
+    // Don't let user claim their own pairing
+    if (row.user_id === user.id) return null
+    const { data: updated, error: upErr } = await supabase
+      .from('friend_pairings')
+      .update({ friend_user_id: user.id })
+      .eq('id', row.id)
+      .select()
+      .single()
+    if (upErr) return null
+    return updated as SupabasePairing
+  } catch {
+    return null
+  }
+}
+
+/** Subject side: list pending approval requests (friend assigned but not yet approved). */
+export async function listPendingApprovals(): Promise<SupabasePairing[]> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+    const { data, error } = await supabase
+      .from('friend_pairings')
+      .select('*')
+      .eq('user_id', user.id)
+      .not('friend_user_id', 'is', null)
+      .is('approved_at', null)
+      .is('revoked_at', null)
+    if (error || !data) return []
+    return data as SupabasePairing[]
+  } catch {
+    return []
+  }
+}
+
+export async function approvePairing(pairingId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('friend_pairings')
+      .update({ approved_at: new Date().toISOString() })
+      .eq('id', pairingId)
+    return !error
+  } catch {
+    return false
+  }
+}
+
+export async function rejectPairing(pairingId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('friend_pairings')
+      .update({ revoked_at: new Date().toISOString(), friend_user_id: null })
+      .eq('id', pairingId)
+    return !error
+  } catch {
+    return false
+  }
+}
+
+/** Subject side: subscribe to incoming pending pairings. Returns an unsubscribe function. */
+export function subscribeToIncomingPairings(
+  onInsert: (row: SupabasePairing) => void,
+): () => void {
+  let channel: any = null
+  ;(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      channel = supabase
+        .channel(`friend_pairings:${user.id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'friend_pairings', filter: `user_id=eq.${user.id}` },
+          (payload: any) => {
+            const row = payload.new as SupabasePairing | undefined
+            if (!row) return
+            if (row.friend_user_id && !row.approved_at && !row.revoked_at) {
+              onInsert(row)
+            }
+          }
+        )
+        .subscribe()
+    } catch (_) {}
+  })()
+  return () => {
+    try { if (channel) supabase.removeChannel(channel) } catch (_) {}
+  }
 }
