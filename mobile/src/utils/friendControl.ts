@@ -2,13 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../supabase'
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no I/O/0/1 to avoid confusion
-const SECRET_LEN = 16
+const SECRET_LEN = 10
 
 const KEY_OUTGOING = '@nova_friend_secret_outgoing' // secret YOU share with your friend (so they can control your blocks)
 const KEY_INCOMING = '@nova_friend_secrets_incoming' // array of secrets shared WITH you (the friends you control)
 
 export function formatSecretForDisplay(secret: string): string {
-  // ABCD-EFGH-IJKL-MNOP
+  // 5-5 split: ABCDE-FGHIJ
+  if (secret.length === 10) return `${secret.slice(0, 5)}-${secret.slice(5)}`
+  // Fallback for any other length
   return secret.replace(/(.{4})(?=.)/g, '$1-')
 }
 
@@ -41,8 +43,8 @@ export function buildShareText(secret: string, _userLabel?: string): string {
 export function parseShareText(input: string): { secret: string; from?: string } | null {
   const stripped = stripDashes(input || '')
   if (!stripped) return null
-  // Find the first 16-char A-Z0-9 run after dashes are stripped
-  const match = stripped.match(/([A-Z0-9]{16})/)
+  const re = new RegExp(`([A-Z0-9]{${SECRET_LEN}})`)
+  const match = stripped.match(re)
   if (!match) return null
   return { secret: match[1] }
 }
@@ -151,11 +153,27 @@ export async function registerOutgoingPairing(secret: string): Promise<void> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    // Use upsert with onConflict to be idempotent if the user regenerates
-    await supabase.from('friend_pairings').upsert(
-      { user_id: user.id, secret, friend_user_id: null, approved_at: null, revoked_at: null },
-      { onConflict: 'user_id' }
-    )
+    // Find an existing active pairing for this user
+    const { data: existing } = await supabase
+      .from('friend_pairings')
+      .select('id')
+      .eq('user_id', user.id)
+      .is('revoked_at', null)
+      .limit(1)
+    if (existing && existing.length > 0) {
+      await supabase
+        .from('friend_pairings')
+        .update({ secret, friend_user_id: null, approved_at: null })
+        .eq('id', existing[0].id)
+    } else {
+      await supabase.from('friend_pairings').insert({
+        user_id: user.id,
+        secret,
+        friend_user_id: null,
+        approved_at: null,
+        revoked_at: null,
+      })
+    }
   } catch (_) {}
 }
 
