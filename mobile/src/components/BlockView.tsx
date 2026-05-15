@@ -101,11 +101,40 @@ export function BlockView({
 
   const [gateVisible, setGateVisible] = useState(false)
   const pendingActionRef = useRef<null | (() => void)>(null)
+  const restoreModalRef = useRef<null | 'catalog' | 'manage'>(null)
 
   const requestToggleOff = (id: string) => {
     pendingActionRef.current = () => onToggle(id)
     try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning) } catch (_) {}
-    setGateVisible(true)
+    // Close any open parent Modal first to avoid the iOS stacked-Modal bug
+    // where dismissing the inner Modal leaves the outer one non-interactive.
+    if (manageOpen) {
+      restoreModalRef.current = 'manage'
+      setManageOpen(false)
+      setTimeout(() => setGateVisible(true), 280)
+    } else if (catalogOpen) {
+      restoreModalRef.current = 'catalog'
+      setCatalogOpen(false)
+      setTimeout(() => setGateVisible(true), 280)
+    } else {
+      restoreModalRef.current = null
+      setGateVisible(true)
+    }
+  }
+
+  const finishGate = (runAction: boolean) => {
+    setGateVisible(false)
+    const fn = pendingActionRef.current
+    pendingActionRef.current = null
+    if (runAction && fn) fn()
+    const restore = restoreModalRef.current
+    restoreModalRef.current = null
+    if (restore) {
+      setTimeout(() => {
+        if (restore === 'manage') setManageOpen(true)
+        else if (restore === 'catalog') setCatalogOpen(true)
+      }, 280)
+    }
   }
 
   const toggleCatalog = (name: string) => {
@@ -480,16 +509,8 @@ export function BlockView({
 
       <OverrideGate
         visible={gateVisible}
-        onSuccess={() => {
-          setGateVisible(false)
-          const fn = pendingActionRef.current
-          pendingActionRef.current = null
-          if (fn) fn()
-        }}
-        onCancel={() => {
-          setGateVisible(false)
-          pendingActionRef.current = null
-        }}
+        onSuccess={() => finishGate(true)}
+        onCancel={() => finishGate(false)}
       />
     </View>
   )
