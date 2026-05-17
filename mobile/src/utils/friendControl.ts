@@ -148,33 +148,42 @@ export type SupabasePairing = {
   created_at: string
 }
 
+export type RegisterResult =
+  | { ok: true }
+  | { ok: false; reason: 'not_signed_in' | 'network' }
+
 /** Subject side: register the secret in Supabase as an open pairing slot. */
-export async function registerOutgoingPairing(secret: string): Promise<void> {
+export async function registerOutgoingPairing(secret: string): Promise<RegisterResult> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    // Find an existing active pairing for this user
-    const { data: existing } = await supabase
+    if (!user) return { ok: false, reason: 'not_signed_in' }
+    const { data: existing, error: selErr } = await supabase
       .from('friend_pairings')
       .select('id')
       .eq('user_id', user.id)
       .is('revoked_at', null)
       .limit(1)
+    if (selErr) return { ok: false, reason: 'network' }
     if (existing && existing.length > 0) {
-      await supabase
+      const { error: upErr } = await supabase
         .from('friend_pairings')
         .update({ secret, friend_user_id: null, approved_at: null })
         .eq('id', existing[0].id)
+      if (upErr) return { ok: false, reason: 'network' }
     } else {
-      await supabase.from('friend_pairings').insert({
+      const { error: insErr } = await supabase.from('friend_pairings').insert({
         user_id: user.id,
         secret,
         friend_user_id: null,
         approved_at: null,
         revoked_at: null,
       })
+      if (insErr) return { ok: false, reason: 'network' }
     }
-  } catch (_) {}
+    return { ok: true }
+  } catch {
+    return { ok: false, reason: 'network' }
+  }
 }
 
 export type ClaimResult =

@@ -110,17 +110,27 @@ export function FriendControlPanel({ visible, onClose }: Props) {
   const visibleInbox = pairings.filter((p) => pairingStatus(p) !== 'open')
   const pendingCount = pairings.filter((p) => pairingStatus(p) === 'pending').length
 
+  const reportRegisterError = (reason: string) => {
+    const msg = reason === 'not_signed_in'
+      ? "Code not saved — finish onboarding (email + verification) first."
+      : "Code not saved — couldn't reach the server. Your friend won't be able to claim it until this works."
+    setCopyToast(msg)
+    setTimeout(() => setCopyToast(''), 5000)
+  }
+
   const handleGenerate = async () => {
     const secret = await ensureOutgoingSecret()
     setOutgoingSecret(secret)
-    // Register the pairing in Supabase so a friend can claim it later
-    await registerOutgoingPairing(secret)
+    const res: any = await registerOutgoingPairing(secret)
+    if (!res.ok) reportRegisterError(res.reason)
+    else { setCopyToast('Code ready to share'); setTimeout(() => setCopyToast(''), 2500) }
   }
 
   const handleShare = async () => {
     const secret = await ensureOutgoingSecret()
     setOutgoingSecret(secret)
-    await registerOutgoingPairing(secret)
+    const res: any = await registerOutgoingPairing(secret)
+    if (!res.ok) { reportRegisterError(res.reason); return }
     try {
       await Share.share({ message: buildShareText(secret) })
     } catch (_) {}
@@ -138,7 +148,8 @@ export function FriendControlPanel({ visible, onClose }: Props) {
   const handleSmsShare = async () => {
     const secret = await ensureOutgoingSecret()
     setOutgoingSecret(secret)
-    await registerOutgoingPairing(secret)
+    const res: any = await registerOutgoingPairing(secret)
+    if (!res.ok) { reportRegisterError(res.reason); return }
     const body = encodeURIComponent(buildShareText(secret))
     try { await Linking.openURL(`sms:?&body=${body}`) } catch (_) {}
   }
@@ -146,7 +157,8 @@ export function FriendControlPanel({ visible, onClose }: Props) {
   const handleWhatsappShare = async () => {
     const secret = await ensureOutgoingSecret()
     setOutgoingSecret(secret)
-    await registerOutgoingPairing(secret)
+    const res: any = await registerOutgoingPairing(secret)
+    if (!res.ok) { reportRegisterError(res.reason); return }
     const body = encodeURIComponent(buildShareText(secret))
     try { await Linking.openURL(`whatsapp://send?text=${body}`) } catch (_) {}
   }
