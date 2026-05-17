@@ -388,17 +388,39 @@ export function FriendControlPanel({ visible, onClose }: Props) {
                     <Text style={styles.rotationLabel}>Codes rotate in</Text>
                     <Text style={styles.rotationValue}>{fmtRotation(rotationLeft)}</Text>
                   </View>
-                  {incoming.map(f => (
-                    <View key={f.pairId} style={styles.friendCard}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.friendName}>{f.friendName}</Text>
-                        <Text style={styles.friendCode}>{computeFriendCode(f.secret, hour)}</Text>
+                  {!!copyToast && (
+                    <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 8, alignSelf: 'center' }}>
+                      {copyToast}
+                    </Text>
+                  )}
+                  {incoming.map(f => {
+                    const code = computeFriendCode(f.secret, hour)
+                    return (
+                      <View key={f.pairId} style={styles.friendCard}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.friendName}>{f.friendName}</Text>
+                          <Text style={styles.friendCode}>{code}</Text>
+                        </View>
+                        <Pressable
+                          onPress={async () => {
+                            try {
+                              await Clipboard.setStringAsync(code)
+                              setCopyToast(`Copied ${code}`)
+                              setTimeout(() => setCopyToast(''), 1800)
+                            } catch (_) {}
+                          }}
+                          hitSlop={10}
+                          style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}
+                        >
+                          <Ionicons name="copy-outline" size={16} color={colors.text} />
+                          <Text style={{ color: colors.text, fontSize: 12, marginLeft: 4, fontWeight: '600' }}>Copy</Text>
+                        </Pressable>
+                        <Pressable onPress={() => handleRemove(f.pairId)} hitSlop={10}>
+                          <Text style={styles.removeLabel}>Remove</Text>
+                        </Pressable>
                       </View>
-                      <Pressable onPress={() => handleRemove(f.pairId)} hitSlop={10}>
-                        <Text style={styles.removeLabel}>Remove</Text>
-                      </Pressable>
-                    </View>
-                  ))}
+                    )
+                  })}
                 </View>
               )}
             </View>

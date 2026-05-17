@@ -20,7 +20,7 @@ let BlurView = null;
 try { BlurView = require('expo-blur').BlurView; } catch (_) {}
 
 const { width: W, height: H } = Dimensions.get('window');
-const TOTAL = 17;
+const TOTAL = 16;
 
 const O = {
   bg:     '#000000',
@@ -172,7 +172,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   }, [step]);
 
   useEffect(() => {
-    if (step !== 7) return;
+    if (step !== 6) return;
     requestNotifs();
   }, [step]);
 
@@ -183,7 +183,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   useEffect(() => {
     setShowAppsHint(false);
     appsHintAnim.setValue(0);
-    if (step !== 9) return;
+    if (step !== 8) return;
     const t = setTimeout(() => {
       setShowAppsHint(true);
       Animated.loop(
@@ -197,7 +197,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   }, [step]);
 
   useEffect(() => {
-    if (step !== 9) return;
+    if (step !== 8) return;
     if (Platform.OS === 'android' && getUsageStats) {
       getUsageStats().then(stats => {
         if (!stats || !stats.length) return;
@@ -370,15 +370,9 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
     { label: 'Reality',  value: actualHours % 1 === 0 ? `${actualHours}h` : `${actualHours.toFixed(1)}h`, sub: `+${diff.toFixed(1)}h you didn't account for`, color: O.red   },
   ];
 
-  const BENEFIT_DATA = [
-    { title: 'Study Time', stat: `+${studyHours.toFixed(1)}h`, sub: 'per day to study'                      },
-    { title: 'Sleep',      stat: '+47 min',                    sub: 'nightly improvement reported'          },
-    { title: 'Control',    stat: '83%',                        sub: 'feel more in control after 30 days'    },
-  ];
-
   // Slides that handle their own CTA buttons (no bottom nav Next button)
-  // 0=welcome, 1=permission, 2=email, 3=OTP, 7=notifs(auto), 8=screentime, 9=apps, 11=sameForAll, 12=time block, 14=per-app, 16=override
-  const SELF_NAV = new Set([0, 1, 2, 3, 7, 8, 9, 11, 12, 14, 16]);
+  // 0=welcome, 1=permission, 2=email, 3=OTP, 6=notifs(auto), 7=screentime, 8=apps, 10=sameForAll, 11=time block, 13=per-app, 15=override
+  const SELF_NAV = new Set([0, 1, 2, 3, 6, 7, 8, 10, 11, 13, 15]);
 
   // ── Slides ─────────────────────────────────────────────────────────────────
   const slides = [
@@ -589,21 +583,6 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
             <Text style={[st.hCardValue, { color: item.color }]}>{item.value}</Text>
             <Text style={st.hCardSub}>{item.sub}</Text>
           </Animated.View>
-        ))}
-      </View>
-    </View>,
-
-    /* 5 - Benefits (2-column grid) */
-    <View key="s5" style={st.slide}>
-      <Text style={[st.bigTitle, { textAlign: 'center', fontSize: 22 }]}>What changing this{'\n'}actually looks like.</Text>
-      <Text style={[st.sub, { textAlign: 'center', marginBottom: 20 }]}>Users report after 30 days</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-        {BENEFIT_DATA.map((item, i) => (
-          <View key={i} style={[st.hCard, { width: '48%', marginBottom: 12, alignItems: 'center' }]}>
-            <Text style={[st.hCardLabel, { marginBottom: 8, textAlign: 'center' }]}>{item.title}</Text>
-            <Text style={[st.hCardValue, { color: O.white, fontSize: 28 }]}>{item.stat}</Text>
-            <Text style={[st.hCardSub, { textAlign: 'center' }]}>{item.sub}</Text>
-          </View>
         ))}
       </View>
     </View>,
@@ -1055,7 +1034,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
         ) : <View style={{ width: 60 }} />}
 
         {!SELF_NAV.has(step) ? (() => {
-          const nextDisabled = (step === 10 && enforcementTypes.length === 0) || otpSending;
+          const nextDisabled = (step === 9 && enforcementTypes.length === 0) || otpSending;
           return (
             <TouchableOpacity
               onPress={step === 2 ? validateEmail : next}
