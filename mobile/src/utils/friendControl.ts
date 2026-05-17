@@ -155,27 +155,34 @@ export type SupabasePairing = {
 }
 
 export type RegisterResult =
-  | { ok: true }
-  | { ok: false; reason: 'not_signed_in' | 'network' }
+  | { ok: true; debug?: string }
+  | { ok: false; reason: 'not_signed_in' | 'network'; debug?: string }
+
+function _fmtErr(e: any): string {
+  if (!e) return 'no error obj'
+  return `${e.code || '?'}: ${e.message || e.toString()}${e.hint ? ` (hint: ${e.hint})` : ''}${e.details ? ` (details: ${e.details})` : ''}`
+}
 
 /** Subject side: register the secret in Supabase as an open pairing slot. */
 export async function registerOutgoingPairing(secret: string): Promise<RegisterResult> {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { ok: false, reason: 'not_signed_in' }
+    const { data: { user }, error: authErr } = await supabase.auth.getUser()
+    if (authErr) return { ok: false, reason: 'not_signed_in', debug: `auth.getUser: ${_fmtErr(authErr)}` }
+    if (!user) return { ok: false, reason: 'not_signed_in', debug: 'no user from getUser' }
     const { data: existing, error: selErr } = await supabase
       .from('friend_pairings')
       .select('id')
       .eq('user_id', user.id)
       .is('revoked_at', null)
       .limit(1)
-    if (selErr) return { ok: false, reason: 'network' }
+    if (selErr) return { ok: false, reason: 'network', debug: `SELECT: ${_fmtErr(selErr)}` }
     if (existing && existing.length > 0) {
       const { error: upErr } = await supabase
         .from('friend_pairings')
         .update({ secret, friend_user_id: null, approved_at: null })
         .eq('id', existing[0].id)
-      if (upErr) return { ok: false, reason: 'network' }
+      if (upErr) return { ok: false, reason: 'network', debug: `UPDATE: ${_fmtErr(upErr)}` }
+      return { ok: true, debug: `updated row uid=${user.id.slice(0,8)} secret_len=${secret.length}` }
     } else {
       const { error: insErr } = await supabase.from('friend_pairings').insert({
         user_id: user.id,
@@ -184,17 +191,17 @@ export async function registerOutgoingPairing(secret: string): Promise<RegisterR
         approved_at: null,
         revoked_at: null,
       })
-      if (insErr) return { ok: false, reason: 'network' }
+      if (insErr) return { ok: false, reason: 'network', debug: `INSERT: ${_fmtErr(insErr)}` }
+      return { ok: true, debug: `inserted row uid=${user.id.slice(0,8)} secret_len=${secret.length}` }
     }
-    return { ok: true }
-  } catch {
-    return { ok: false, reason: 'network' }
+  } catch (e: any) {
+    return { ok: false, reason: 'network', debug: `throw: ${e?.message || String(e)}` }
   }
 }
 
 export type ClaimResult =
-  | { ok: true; pairing: SupabasePairing }
-  | { ok: false; reason: 'not_signed_in' | 'no_match' | 'self' | 'network' }
+  | { ok: true; pairing: SupabasePairing; debug?: string }
+  | { ok: false; reason: 'not_signed_in' | 'no_match' | 'self' | 'network'; debug?: string }
 
 /**
  * Friend side: claim a pending pairing by matching secret. Returns a discriminated
@@ -202,8 +209,10 @@ export type ClaimResult =
  */
 export async function claimPairingBySecret(secret: string): Promise<ClaimResult> {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { ok: false, reason: 'not_signed_in' }
+    const { data: { user }, error: authErr } = await supabase.auth.getUser()
+    if (authErr) return { ok: false, reason: 'not_signed_in', debug: `auth.getUser: ${_fmtErr(authErr)}` }
+    if (!user) return { ok: false, reason: 'not_signed_in', debug: 'no user from getUser' }
+    const peek = `${secret.slice(0, 4)}…${secret.slice(-2)} len=${secret.length}`
     const { data: rows, error } = await supabase
       .from('friend_pairings')
       .select('*')
@@ -211,20 +220,20 @@ export async function claimPairingBySecret(secret: string): Promise<ClaimResult>
       .is('friend_user_id', null)
       .is('revoked_at', null)
       .limit(1)
-    if (error) return { ok: false, reason: 'network' }
-    if (!rows || rows.length === 0) return { ok: false, reason: 'no_match' }
+    if (error) return { ok: false, reason: 'network', debug: `SELECT(${peek}): ${_fmtErr(error)}` }
+    if (!rows || rows.length === 0) return { ok: false, reason: 'no_match', debug: `0 rows for ${peek} uid=${user.id.slice(0,8)}` }
     const row = rows[0]
-    if (row.user_id === user.id) return { ok: false, reason: 'self' }
+    if (row.user_id === user.id) return { ok: false, reason: 'self', debug: `your_uid=${user.id.slice(0,8)} row_uid=${row.user_id.slice(0,8)}` }
     const { data: updated, error: upErr } = await supabase
       .from('friend_pairings')
       .update({ friend_user_id: user.id })
       .eq('id', row.id)
       .select()
       .single()
-    if (upErr) return { ok: false, reason: 'network' }
-    return { ok: true, pairing: updated as SupabasePairing }
-  } catch {
-    return { ok: false, reason: 'network' }
+    if (upErr) return { ok: false, reason: 'network', debug: `UPDATE: ${_fmtErr(upErr)}` }
+    return { ok: true, pairing: updated as SupabasePairing, debug: `claimed row ${row.id.slice(0,8)} as uid=${user.id.slice(0,8)}` }
+  } catch (e: any) {
+    return { ok: false, reason: 'network', debug: `throw: ${e?.message || String(e)}` }
   }
 }
 

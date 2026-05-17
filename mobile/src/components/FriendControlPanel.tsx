@@ -110,27 +110,28 @@ export function FriendControlPanel({ visible, onClose }: Props) {
   const visibleInbox = pairings.filter((p) => pairingStatus(p) !== 'open')
   const pendingCount = pairings.filter((p) => pairingStatus(p) === 'pending').length
 
-  const reportRegisterError = (reason: string) => {
-    const msg = reason === 'not_signed_in'
-      ? "Code not saved — finish onboarding (email + verification) first."
-      : "Code not saved — couldn't reach the server. Your friend won't be able to claim it until this works."
+  const reportRegisterError = (reason: string, debug?: string) => {
+    const base = reason === 'not_signed_in'
+      ? "Code not saved — finish onboarding first."
+      : "Code not saved — server rejected it."
+    const msg = debug ? `${base}\nDEBUG: ${debug}` : base
     setCopyToast(msg)
-    setTimeout(() => setCopyToast(''), 5000)
+    setTimeout(() => setCopyToast(''), 12000)
   }
 
   const handleGenerate = async () => {
     const secret = await ensureOutgoingSecret()
     setOutgoingSecret(secret)
     const res: any = await registerOutgoingPairing(secret)
-    if (!res.ok) reportRegisterError(res.reason)
-    else { setCopyToast('Code ready to share'); setTimeout(() => setCopyToast(''), 2500) }
+    if (!res.ok) reportRegisterError(res.reason, res.debug)
+    else { setCopyToast(`Code ready to share${res.debug ? `\nDEBUG: ${res.debug}` : ''}`); setTimeout(() => setCopyToast(''), 8000) }
   }
 
   const handleShare = async () => {
     const secret = await ensureOutgoingSecret()
     setOutgoingSecret(secret)
     const res: any = await registerOutgoingPairing(secret)
-    if (!res.ok) { reportRegisterError(res.reason); return }
+    if (!res.ok) { reportRegisterError(res.reason, res.debug); return }
     try {
       await Share.share({ message: buildShareText(secret) })
     } catch (_) {}
@@ -149,7 +150,7 @@ export function FriendControlPanel({ visible, onClose }: Props) {
     const secret = await ensureOutgoingSecret()
     setOutgoingSecret(secret)
     const res: any = await registerOutgoingPairing(secret)
-    if (!res.ok) { reportRegisterError(res.reason); return }
+    if (!res.ok) { reportRegisterError(res.reason, res.debug); return }
     const body = encodeURIComponent(buildShareText(secret))
     try { await Linking.openURL(`sms:?&body=${body}`) } catch (_) {}
   }
@@ -158,7 +159,7 @@ export function FriendControlPanel({ visible, onClose }: Props) {
     const secret = await ensureOutgoingSecret()
     setOutgoingSecret(secret)
     const res: any = await registerOutgoingPairing(secret)
-    if (!res.ok) { reportRegisterError(res.reason); return }
+    if (!res.ok) { reportRegisterError(res.reason, res.debug); return }
     const body = encodeURIComponent(buildShareText(secret))
     try { await Linking.openURL(`whatsapp://send?text=${body}`) } catch (_) {}
   }
@@ -185,12 +186,13 @@ export function FriendControlPanel({ visible, onClose }: Props) {
     const name = friendNameInput.trim() || parsed.from || 'Friend'
     const result: any = await claimPairingBySecret(parsed.secret)
     if (!result.ok) {
-      const msg = ({
+      const base = ({
         not_signed_in: "You're not signed in. Finish onboarding (email + verification code) first.",
         no_match: "Code not found. Ask your friend to tap Generate or Share in their app first, then try again.",
         self: "That's your own code — you can't claim your own pairing.",
         network: "Couldn't reach the server. Check your connection and try again.",
       })[result.reason] || 'Could not register this pairing.'
+      const msg = result.debug ? `${base}\nDEBUG: ${result.debug}` : base
       setPasteErr(msg)
       return
     }
