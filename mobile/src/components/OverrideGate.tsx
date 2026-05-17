@@ -66,15 +66,23 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
 
   useEffect(() => {
     if (!visible) return
-    AsyncStorage.getItem('@nova_override_method').then((m) => {
-      const resolved = m === 'friend' ? 'friend' : 'self'
+    ;(async () => {
+      const m = await AsyncStorage.getItem('@nova_override_method')
+      let resolved: 'self' | 'friend' = m === 'friend' ? 'friend' : 'self'
+      // If the user picked Friend Control during onboarding but never finished
+      // setting it up (no outgoing secret = never tapped Generate/Share), fall
+      // back to Self Control so they can still override their own blocks.
+      if (resolved === 'friend') {
+        const secret = await getOutgoingSecret()
+        if (!secret) resolved = 'self'
+      }
       setMethod(resolved)
       setStage(resolved === 'friend' ? 'friend' : 'hold')
       setHoldProgress(0)
       setAdsRemaining(ADS_SECONDS)
       setFriendCode('')
       setFriendErr('')
-    })
+    })()
   }, [visible])
 
   const cancelAll = () => {
