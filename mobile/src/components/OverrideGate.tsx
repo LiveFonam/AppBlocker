@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Animated,
   AppState,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -236,7 +238,16 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onCancel}>
-      <View style={styles.backdrop}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.backdrop}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollInner}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.card}>
           {stage === 'hold' && (
             <>
@@ -300,13 +311,15 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
             </>
           )}
         </View>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   )
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', paddingHorizontal: space.container },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)' },
+  scrollInner: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: space.container, paddingTop: 60, paddingBottom: 24 },
   card: { backgroundColor: '#0a0a0a', borderRadius: cardRadius, borderWidth: 1, borderColor: colors.outline, padding: 24 },
   title: { color: colors.text, fontSize: 22, ...fonts.semibold, marginBottom: 8 },
   sub: { color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 20 },

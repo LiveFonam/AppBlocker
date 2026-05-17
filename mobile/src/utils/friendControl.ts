@@ -204,8 +204,9 @@ export type ClaimResult =
   | { ok: false; reason: 'not_signed_in' | 'no_match' | 'self' | 'network'; debug?: string }
 
 /**
- * Friend side: claim a pending pairing by matching secret. Returns a discriminated
- * result so callers can show actionable error messages instead of silently succeeding.
+ * Friend side: claim a pending pairing by matching secret. Uses UPDATE-with-
+ * RETURNING so the existing fp_update_party policy is sufficient — no need for
+ * a permissive SELECT policy on unclaimed rows.
  */
 export async function claimPairingBySecret(secret: string): Promise<ClaimResult> {
   try {
@@ -213,25 +214,34 @@ export async function claimPairingBySecret(secret: string): Promise<ClaimResult>
     if (authErr) return { ok: false, reason: 'not_signed_in', debug: `auth.getUser: ${_fmtErr(authErr)}` }
     if (!user) return { ok: false, reason: 'not_signed_in', debug: 'no user from getUser' }
     const peek = `${secret.slice(0, 4)}…${secret.slice(-2)} len=${secret.length}`
-    const { data: rows, error } = await supabase
-      .from('friend_pairings')
-      .select('*')
-      .eq('secret', secret)
-      .is('friend_user_id', null)
-      .is('revoked_at', null)
-      .limit(1)
-    if (error) return { ok: false, reason: 'network', debug: `SELECT(${peek}): ${_fmtErr(error)}` }
-    if (!rows || rows.length === 0) return { ok: false, reason: 'no_match', debug: `0 rows for ${peek} uid=${user.id.slice(0,8)}` }
-    const row = rows[0]
-    if (row.user_id === user.id) return { ok: false, reason: 'self', debug: `your_uid=${user.id.slice(0,8)} row_uid=${row.user_id.slice(0,8)}` }
+
+    // UPDATE WHERE secret=X AND friend_user_id IS NULL AND user_id != me; RETURNING *.
+    // fp_update_party USING (... OR friend_user_id IS NULL ...) permits this without SELECT.
     const { data: updated, error: upErr } = await supabase
       .from('friend_pairings')
       .update({ friend_user_id: user.id })
-      .eq('id', row.id)
+      .eq('secret', secret)
+      .is('friend_user_id', null)
+      .is('revoked_at', null)
+      .neq('user_id', user.id)
       .select()
-      .single()
-    if (upErr) return { ok: false, reason: 'network', debug: `UPDATE: ${_fmtErr(upErr)}` }
-    return { ok: true, pairing: updated as SupabasePairing, debug: `claimed row ${row.id.slice(0,8)} as uid=${user.id.slice(0,8)}` }
+      .maybeSingle()
+
+    if (upErr) return { ok: false, reason: 'network', debug: `UPDATE(${peek}): ${_fmtErr(upErr)}` }
+    if (!updated) {
+      // 0 rows updated — could be no_match OR self (we excluded own rows). Disambiguate.
+      const { data: selfCheck } = await supabase
+        .from('friend_pairings')
+        .select('id')
+        .eq('secret', secret)
+        .eq('user_id', user.id)
+        .limit(1)
+      if (selfCheck && selfCheck.length > 0) {
+        return { ok: false, reason: 'self', debug: `pasted own code ${peek}` }
+      }
+      return { ok: false, reason: 'no_match', debug: `0 rows updated for ${peek} uid=${user.id.slice(0,8)}` }
+    }
+    return { ok: true, pairing: updated as SupabasePairing, debug: `claimed row ${updated.id.slice(0,8)} as uid=${user.id.slice(0,8)}` }
   } catch (e: any) {
     return { ok: false, reason: 'network', debug: `throw: ${e?.message || String(e)}` }
   }
