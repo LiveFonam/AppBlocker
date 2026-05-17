@@ -171,12 +171,23 @@ export function FriendControlPanel({ visible, onClose }: Props) {
     }
     setPasteErr('')
     const name = friendNameInput.trim() || parsed.from || 'Friend'
-    // Claim the pairing on Supabase so the subject can approve. Don't fail locally if Supabase is offline.
-    await claimPairingBySecret(parsed.secret)
+    const result: any = await claimPairingBySecret(parsed.secret)
+    if (!result.ok) {
+      const msg = ({
+        not_signed_in: "You're not signed in. Finish onboarding (email + verification code) first.",
+        no_match: "Code not found. Ask your friend to tap Generate or Share in their app first, then try again.",
+        self: "That's your own code — you can't claim your own pairing.",
+        network: "Couldn't reach the server. Check your connection and try again.",
+      })[result.reason] || 'Could not register this pairing.'
+      setPasteErr(msg)
+      return
+    }
     await addIncomingFriend(parsed.secret, name)
     setIncoming(await getIncomingFriends())
     setPasteInput('')
     setFriendNameInput('')
+    setPasteToast('Sent — your friend will get an approval request')
+    setTimeout(() => setPasteToast(''), 4000)
   }
 
   const handleRemove = async (pairId: string) => {

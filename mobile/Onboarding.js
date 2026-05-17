@@ -4,15 +4,20 @@ import {
   Animated, Dimensions, Platform, TextInput, Vibration,
   KeyboardAvoidingView, ScrollView, ActivityIndicator, Linking, AppState,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 let Haptics = null;
 try { Haptics = require('expo-haptics'); } catch (_) {}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './src/supabase';
 import { isUniversityDomain } from './src/universityDomains';
+import { FriendControlPanel } from './src/components/FriendControlPanel';
 
 let Notifications = null;
 try { Notifications = require('expo-notifications'); } catch (_) {}
+
+let BlurView = null;
+try { BlurView = require('expo-blur').BlurView; } catch (_) {}
 
 const { width: W, height: H } = Dimensions.get('window');
 const TOTAL = 17;
@@ -85,6 +90,7 @@ function parseTimeStr(raw) {
 }
 
 export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
+  const insets = useSafeAreaInsets();
   const outerRef = useRef(null);
   const progressAnim = useRef(new Animated.Value(1 / TOTAL)).current;
 
@@ -114,6 +120,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   const [sameForAll,   setSameForAll]   = useState(true);
   const [dailyLimitMins, setDailyLimitMins] = useState(60);
   const [overrideMethod, setOverrideMethod] = useState(null);
+  const [friendPanelOpen, setFriendPanelOpen] = useState(false);
   const [startInput,   setStartInput]   = useState('');
   const [endInput,     setEndInput]     = useState('');
   const [perAppConfig, setPerAppConfig] = useState({});
@@ -389,16 +396,25 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       <View style={st.requiredPill}>
         <Text style={st.requiredPillTxt}>REQUIRED</Text>
       </View>
-      <View style={st.sysSheet}>
-        <Text style={st.sheetTitle}>
-          This lets us show you exactly where your time is going and block the apps that pull you away from what matters.
-        </Text>
-        <View style={st.sheetBtns}>
-          <TouchableOpacity style={st.denyBtn} onPress={next}>
-            <Text style={st.denyTxt}>Ask Not to Track</Text>
+      <View style={st.sysSheetOuter}>
+        {BlurView && Platform.OS === 'ios' && (
+          <BlurView intensity={70} tint="dark" style={StyleSheet.absoluteFill} />
+        )}
+        <View style={st.sysSheetInner}>
+          <Text style={st.sheetTitleIOS}>
+            "Student Focus" Would Like to Access Your Activity Data
+          </Text>
+          <Text style={st.sheetBodyIOS}>
+            This lets us show you exactly where your time is going and block the apps that pull you away from what matters.
+          </Text>
+        </View>
+        <View style={st.sheetBtnsIOS}>
+          <TouchableOpacity style={st.sheetBtnIOS} onPress={next}>
+            <Text style={st.sheetBtnTxtIOS}>Ask Not to Track</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={st.allowBtn} onPress={async () => { await requestAuth?.(); next(); }}>
-            <Text style={st.allowTxt}>Allow</Text>
+          <View style={st.sheetDivider} />
+          <TouchableOpacity style={st.sheetBtnIOS} onPress={async () => { await requestAuth?.(); next(); }}>
+            <Text style={[st.sheetBtnTxtIOS, st.sheetBtnTxtIOSBold]}>Allow</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -985,7 +1001,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       <Text style={st.sub}>Pick how you'll override your own limits later.</Text>
       <TouchableOpacity
         style={[st.modeCard, overrideMethod === 'friend' && st.modeCardOn, { marginTop: 16 }]}
-        onPress={() => setOverrideMethod('friend')}
+        onPress={() => { setOverrideMethod('friend'); setFriendPanelOpen(true); }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
           <Text style={[st.modeTitle, overrideMethod === 'friend' && { color: O.white }]}>Friend Control</Text>
@@ -993,14 +1009,14 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
             <Text style={{ color: O.bg, fontSize: 10, fontWeight: '700' }}>MORE EFFECTIVE</Text>
           </View>
         </View>
-        <Text style={st.modeSub}>Share a link with a friend. They get a code (rotating hourly) you'll need to unlock apps or change settings.</Text>
+        <Text style={st.modeSub}>Share a link with a friend. They get a code (rotating hourly) you'll need to unlock apps or change settings. Tap to set up now.</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[st.modeCard, overrideMethod === 'self' && st.modeCardOn, { marginTop: 16 }]}
         onPress={() => setOverrideMethod('self')}
       >
         <Text style={[st.modeTitle, overrideMethod === 'self' && { color: O.white }]}>Self Control</Text>
-        <Text style={st.modeSub}>Hold a button for 10 seconds, then sit through 5 minutes of ads before you can override. Leaving the app cancels it.</Text>
+        <Text style={st.modeSub}>Hold a button for 10 seconds, then sit through 4 minutes of ads before you can override. Leaving the app cancels it.</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[st.btn, { marginTop: 28, opacity: overrideMethod ? 1 : 0.4 }]}
@@ -1013,7 +1029,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   ];
 
   return (
-    <View style={st.container}>
+    <View style={[st.container, { paddingTop: insets.top }]}>
       <View style={st.progressTrack}>
         <Animated.View style={[st.progressFill, {
           width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
@@ -1053,6 +1069,11 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
           );
         })() : <View style={{ width: 60 }} />}
       </View>
+
+      <FriendControlPanel
+        visible={friendPanelOpen}
+        onClose={() => setFriendPanelOpen(false)}
+      />
     </View>
   );
 }
@@ -1096,6 +1117,45 @@ const st = StyleSheet.create({
   denyTxt: { color: O.muted, fontWeight: '600', fontSize: 15 },
   allowBtn: { flex: 1, paddingVertical: 13, backgroundColor: O.white, alignItems: 'center' },
   allowTxt: { color: O.bg, fontWeight: '700', fontSize: 15 },
+  // iOS-native style permission sheet (replaces sysSheet on slide 1)
+  sysSheetOuter: {
+    marginTop: 24,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: Platform.OS === 'ios' ? 'rgba(28,28,30,0.55)' : 'rgba(28,28,30,0.92)',
+  },
+  sysSheetInner: {
+    paddingTop: 20,
+    paddingHorizontal: 18,
+    paddingBottom: 16,
+    alignItems: 'center',
+  },
+  sheetTitleIOS: {
+    color: O.white, fontSize: 17, fontWeight: '600',
+    textAlign: 'center', marginBottom: 8,
+  },
+  sheetBodyIOS: {
+    color: 'rgba(235,235,245,0.7)', fontSize: 13, lineHeight: 18,
+    textAlign: 'center',
+  },
+  sheetBtnsIOS: {
+    flexDirection: 'row',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.18)',
+  },
+  sheetBtnIOS: {
+    flex: 1, paddingVertical: 13, alignItems: 'center', justifyContent: 'center',
+  },
+  sheetDivider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  sheetBtnTxtIOS: {
+    color: '#0a84ff', fontSize: 17, fontWeight: '400',
+  },
+  sheetBtnTxtIOSBold: { fontWeight: '600' },
   input: {
     borderWidth: 1, borderColor: O.border,
     padding: 14, color: O.white, fontSize: 16, backgroundColor: O.card, marginTop: 12, borderRadius: 10,

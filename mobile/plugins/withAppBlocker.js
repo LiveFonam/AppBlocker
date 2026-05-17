@@ -14,6 +14,8 @@ const {
   withAndroidManifest,
   withDangerousMod,
   withMainApplication,
+  withStringsXml,
+  AndroidConfig,
 } = require('@expo/config-plugins');
 const fs   = require('fs');
 const path = require('path');
@@ -118,6 +120,21 @@ function withAndroidManifestChanges(config) {
   });
 }
 
+function withAccessibilityServiceStrings(config) {
+  return withStringsXml(config, (modConfig) => {
+    modConfig.modResults = AndroidConfig.Strings.setStringItem(
+      [
+        {
+          $: { name: 'accessibility_service_description', translatable: 'false' },
+          _: 'Detects when a blocked app opens and redirects you back to Student Focus.',
+        },
+      ],
+      modConfig.modResults,
+    );
+    return modConfig;
+  });
+}
+
 function withAndroidPackageRegistration(config) {
   return withMainApplication(config, (modConfig) => {
     const src = modConfig.modResults.contents;
@@ -139,6 +156,7 @@ function withAndroidPackageRegistration(config) {
 module.exports = (config) => {
   config = withIosModule(config);
   config = withAndroidKotlinFiles(config);
+  config = withAccessibilityServiceStrings(config);
   config = withAndroidManifestChanges(config);
   config = withAndroidPackageRegistration(config);
   return config;

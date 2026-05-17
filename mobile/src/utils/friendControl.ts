@@ -177,12 +177,18 @@ export async function registerOutgoingPairing(secret: string): Promise<void> {
   } catch (_) {}
 }
 
-/** Friend side: claim a pending pairing by matching secret. Returns the row or null. */
-export async function claimPairingBySecret(secret: string): Promise<SupabasePairing | null> {
+export type ClaimResult =
+  | { ok: true; pairing: SupabasePairing }
+  | { ok: false; reason: 'not_signed_in' | 'no_match' | 'self' | 'network' }
+
+/**
+ * Friend side: claim a pending pairing by matching secret. Returns a discriminated
+ * result so callers can show actionable error messages instead of silently succeeding.
+ */
+export async function claimPairingBySecret(secret: string): Promise<ClaimResult> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return null
-    // Find pairing with matching secret that has no friend yet
+    if (!user) return { ok: false, reason: 'not_signed_in' }
     const { data: rows, error } = await supabase
       .from('friend_pairings')
       .select('*')
@@ -190,20 +196,20 @@ export async function claimPairingBySecret(secret: string): Promise<SupabasePair
       .is('friend_user_id', null)
       .is('revoked_at', null)
       .limit(1)
-    if (error || !rows || rows.length === 0) return null
+    if (error) return { ok: false, reason: 'network' }
+    if (!rows || rows.length === 0) return { ok: false, reason: 'no_match' }
     const row = rows[0]
-    // Don't let user claim their own pairing
-    if (row.user_id === user.id) return null
+    if (row.user_id === user.id) return { ok: false, reason: 'self' }
     const { data: updated, error: upErr } = await supabase
       .from('friend_pairings')
       .update({ friend_user_id: user.id })
       .eq('id', row.id)
       .select()
       .single()
-    if (upErr) return null
-    return updated as SupabasePairing
+    if (upErr) return { ok: false, reason: 'network' }
+    return { ok: true, pairing: updated as SupabasePairing }
   } catch {
-    return null
+    return { ok: false, reason: 'network' }
   }
 }
 
