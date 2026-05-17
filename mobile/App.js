@@ -1007,6 +1007,16 @@ function App() {
       <StatusBar barStyle="light-content" />
       <Shell onReplaySetup={async () => {
         await AsyncStorage.removeItem('@nova_onboarding_done');
+        // Also clear the server-side flag so the startup hydration at App.js:840+
+        // doesn't immediately re-mark onboarding done on the next launch.
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            await supabase.from('profiles')
+              .update({ onboarding_completed_at: null })
+              .eq('user_id', session.user.id);
+          }
+        } catch (_) {}
         setOnboardingDone(false);
       }} />
     </SafeAreaProvider>

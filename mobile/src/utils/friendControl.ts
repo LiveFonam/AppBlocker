@@ -8,8 +8,10 @@ const KEY_OUTGOING = '@nova_friend_secret_outgoing' // secret YOU share with you
 const KEY_INCOMING = '@nova_friend_secrets_incoming' // array of secrets shared WITH you (the friends you control)
 
 export function formatSecretForDisplay(secret: string): string {
-  // 5-5 split: ABCDE-FGHIJ
+  // Current format: 5-5 split (ABCDE-FGHIJ)
   if (secret.length === 10) return `${secret.slice(0, 5)}-${secret.slice(5)}`
+  // Legacy format: 4-4-4-4 split (ABCD-EFGH-IJKL-MNOP)
+  if (secret.length === 16) return secret.match(/.{4}/g)!.join('-')
   // Fallback for any other length
   return secret.replace(/(.{4})(?=.)/g, '$1-')
 }
@@ -43,10 +45,14 @@ export function buildShareText(secret: string, _userLabel?: string): string {
 export function parseShareText(input: string): { secret: string; from?: string } | null {
   const stripped = stripDashes(input || '')
   if (!stripped) return null
-  const re = new RegExp(`([A-Z0-9]{${SECRET_LEN}})`)
-  const match = stripped.match(re)
-  if (!match) return null
-  return { secret: match[1] }
+  // Try legacy length (16) before current (10) so a 16-char code from an older
+  // build isn't truncated to its 10-char prefix and silently mismatched.
+  for (const len of [16, SECRET_LEN]) {
+    const re = new RegExp(`([A-Z0-9]{${len}})`)
+    const match = stripped.match(re)
+    if (match) return { secret: match[1] }
+  }
+  return null
 }
 
 /**
