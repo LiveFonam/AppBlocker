@@ -17,7 +17,7 @@
 </head>
 <body>
   <h1>Terms of Service</h1>
-  <p class="updated">Effective: May 14, 2026 · Last updated: May 14, 2026</p>
+  <p class="updated">Effective: May 14, 2026 · Last updated: May 21, 2026</p>
 
   <p>By downloading, installing, or using Student Focus (the "App"), you agree to these Terms of Service ("Terms"). If you do not agree, do not use the App.</p>
 
@@ -53,10 +53,20 @@
   <h2>6. How the Blocking Feature Works (Realism)</h2>
   <p>Blocking apps on a phone depends on permissions you grant and the operating system's own APIs:</p>
   <ul>
-    <li><strong>iOS:</strong> Blocking relies on Apple's Screen Time / FamilyControls API. If the entitlement is not active in a given build or you do not grant the permission, the App's blocking features will be limited.</li>
-    <li><strong>Android:</strong> Blocking requires you to enable the Accessibility Service and grant Usage Access in your device's Settings.</li>
+    <li><strong>iOS:</strong> Blocking is performed by Apple's <strong>FamilyControls</strong> / <strong>ManagedSettings</strong> / <strong>DeviceActivity</strong> frameworks (the Screen Time API). When you start a focus session, the App tells iOS to apply a shield to the apps you selected via Apple's system picker. Apple — not us — is what actually prevents the app from opening. If the entitlement is not active in a given build or you do not grant the system permission, the App's enforcement is limited to local UI hints (no real shield).</li>
+    <li><strong>Android:</strong> Blocking is performed by an in-app Accessibility Service that detects when a blocked package comes to the foreground and immediately launches Student Focus on top. This is a redirect, not a true system lock — you can dismiss the Accessibility Service from Settings at any time, after which redirection stops. Requires the BIND_ACCESSIBILITY_SERVICE and PACKAGE_USAGE_STATS permissions, granted manually in Android Settings.</li>
   </ul>
   <p>If those permissions are revoked or unavailable, the App cannot enforce blocks. We do our best, but we cannot guarantee a particular blocking outcome.</p>
+
+  <h2>6a. Friend Control (Optional)</h2>
+  <p>If you enable Friend Control, a trusted friend can help you override your own blocks. By using this feature:</p>
+  <ul>
+    <li>You agree to share a randomly generated 10-character invite code with one friend you trust. The code lets your friend generate rotating 6-digit override codes derived locally from a shared secret. The friend cannot see your blocked apps, your stats, or your email.</li>
+    <li>You agree not to share your invite code publicly or with parties you do not personally know and trust.</li>
+    <li>You acknowledge that the override flow is a behavioral friction layer, not a security boundary. A determined user can always uninstall the App to remove all blocks.</li>
+    <li>You may revoke a friend's access at any time via Settings → Friend Control → Incoming requests.</li>
+    <li>If you act as someone else's accountability friend, you agree to use the rotating codes only with the explicit, ongoing permission of that person.</li>
+  </ul>
 
   <h2>7. No Guarantees / Disclaimer</h2>
   <p>The App is provided "as is" and "as available," without warranty of any kind, express or implied, including warranties of merchantability, fitness for a particular purpose, or non-infringement, except where such warranties cannot be excluded under applicable consumer law.</p>
@@ -82,7 +92,11 @@
 
   <h2>11. Termination</h2>
   <p>We may suspend or terminate your account if you materially violate these Terms or use the App in a way that harms the Service or other users. We will give you reasonable notice unless the conduct requires immediate action.</p>
-  <p>You may terminate at any time by uninstalling the App. To also delete the account record at our authentication provider, email us; see our Privacy Policy for the deletion process.</p>
+  <p>You may terminate at any time in two ways:</p>
+  <ul>
+    <li><strong>In-app:</strong> Settings → "Delete my account" deletes your account record and all associated data (block settings, friend pairings, sessions, authentication record).</li>
+    <li><strong>Uninstall:</strong> Removing the App from your phone clears all on-device data. To also clear the server-side account record, use the in-app deletion above or email us; see our Privacy Policy for the deletion process.</li>
+  </ul>
 
   <h2>12. Changes to These Terms</h2>
   <p>We may update these Terms from time to time. Material changes will be announced inside the App or by an in-app notice before they take effect. Continued use of the App after the effective date constitutes acceptance of the updated Terms.</p>

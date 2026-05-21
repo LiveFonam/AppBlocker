@@ -21,7 +21,7 @@
 </head>
 <body>
   <h1>Privacy Policy</h1>
-  <p class="updated">Effective: May 14, 2026 · Last updated: May 14, 2026</p>
+  <p class="updated">Effective: May 14, 2026 · Last updated: May 21, 2026</p>
 
   <p>Student Focus ("we", "our", "us", or the "Service") is operated by an individual developer based in Quebec, Canada. This Privacy Policy explains, in plain language, what personal information we collect, why we collect it, how it is used and shared, and the rights you have over it. It is written to comply with Canada's <strong>PIPEDA</strong>, Quebec's <strong>Law 25</strong> (the Act respecting the protection of personal information in the private sector, as amended), California's <strong>CCPA/CPRA</strong>, and the U.S. federal <strong>COPPA</strong>.</p>
 
@@ -46,6 +46,7 @@
     <tr><td>Authentication state</td><td>Session token</td><td>Encrypted secure storage on your device</td></tr>
     <tr><td>Electronic activity on your device</td><td>Time spent in other apps (Screen Time / Usage Stats), once you grant permission</td><td>Your device only, never uploaded</td></tr>
     <tr><td>Preferences / inferences</td><td>Apps you chose to block, time windows, daily limits, override method (Friend Control or Self Control)</td><td>Supabase (US) and your device, so the setup follows you to a new phone</td></tr>
+    <tr><td>Friend Control pairing data</td><td>A random 10-character "invite code" you generate, the Supabase user-ID of any friend who accepts your code, approval/revocation timestamps. If you act as someone else's accountability friend, their invite code is stored on your device (encrypted) so you can show them rotating override codes.</td><td>Supabase (US); your local copy of any friend's invite code lives in encrypted secure storage on your device. Two-party data: each row is readable by you AND the friend named on it.</td></tr>
     <tr><td>Local counters</td><td>Number of block attempts, sessions completed, streak days</td><td>Your device only</td></tr>
   </table>
 
@@ -69,7 +70,7 @@
   <p>Student Focus relies on three third-party services. Each receives only what is necessary for its narrow job:</p>
   <table>
     <tr><th>Service</th><th>What it receives</th><th>Where it processes</th></tr>
-    <tr><td>Supabase</td><td>Your email, session token, and the block settings you configured (which apps, time windows, daily limits, override method). Block settings are synced so you can recover them on a new phone. Apple Screen Time / Android Usage Stats data is NOT sent to Supabase.</td><td>United States. See <a href="https://supabase.com/privacy" target="_blank">privacy policy</a></td></tr>
+    <tr><td>Supabase</td><td>Your email, session token, and the block settings you configured (which apps, time windows, daily limits, override method). Block settings are synced so you can recover them on a new phone. If you use Friend Control, also: your 10-character invite code (TEXT), the Supabase user-ID of any friend who paired with you, and approval/revocation timestamps. Real-time channel events for these rows fire to keep your inbox updated. Apple Screen Time / Android Usage Stats data is NOT sent to Supabase.</td><td>United States. See <a href="https://supabase.com/privacy" target="_blank">privacy policy</a></td></tr>
     <tr><td>Expo (Vercel)</td><td>A device push token if you grant notification permission. No personal content is sent.</td><td>United States. <a href="https://expo.dev/privacy" target="_blank">privacy policy</a></td></tr>
     <tr><td>GitHub Pages (raw.githubusercontent.com)</td><td>A request to fetch a public list of university domains (used to validate your email). Your email is not sent in this request.</td><td>United States. <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank">privacy policy</a></td></tr>
   </table>
@@ -151,18 +152,39 @@
   <h2>13. iOS Screen Time &amp; Android Usage Access</h2>
   <p>To enforce limits and show you real stats, the Service needs to know how long you have spent in other apps. This is read from your device's system APIs only after you grant the appropriate permission:</p>
   <ul>
-    <li><strong>iOS:</strong> Apple's Screen Time / FamilyControls API. You will see Apple's own permission prompt the first time we ask. You can revoke it any time from <em>Settings → Screen Time → See All App &amp; Website Activity → Share Across Devices</em> (path may vary by iOS version) or directly within Settings &gt; Student Focus.</li>
-    <li><strong>Android:</strong> The Usage Access permission and (optionally) Accessibility Service. You grant both manually in Android Settings.</li>
+    <li><strong>iOS:</strong> Apple's <strong>FamilyControls</strong>, <strong>ManagedSettings</strong>, and <strong>DeviceActivity</strong> frameworks (collectively, the Screen Time API). You will see Apple's own permission prompt the first time we ask. The list of apps you choose to block is selected via Apple's system <em>FamilyActivityPicker</em>, which returns an opaque, on-device token. We never see the names or bundle identifiers of the apps you blocked — only a token Apple's framework uses to apply the shield. ManagedSettings then displays Apple's shield over those apps when a focus session is active. You can revoke the permission any time from <em>Settings → Screen Time → Apps that Can Access Screen Time</em> or directly within Settings &gt; Student Focus.</li>
+    <li><strong>Android:</strong> The Usage Access permission and Accessibility Service. The Accessibility Service runs in the background and watches for window-state-change events; when the foreground app matches your blocked list it launches Student Focus on top to redirect you. You grant both permissions manually in Android Settings and can revoke either at any time.</li>
   </ul>
-  <p>This data is read on your device and used on your device. It is not sent to our servers and is not visible to us.</p>
+  <p>This data is read on your device and used on your device. The opaque app-selection token, your daily-usage counters, and your block decisions stay on your device. They are not sent to our servers and are not visible to us.</p>
 
-  <h2>14. Push Notifications</h2>
-  <p>If you allow notifications, your device registers a push token with Expo's push service (United States). The token is an anonymous device identifier used to deliver pushes; it cannot read information from your phone. You can revoke notification permission at any time in your device's OS settings.</p>
+  <h2>14. Friend Control (Optional Feature)</h2>
+  <p>If you enable Friend Control, you can ask one trusted friend to be your accountability partner. When you do:</p>
+  <ul>
+    <li><strong>What we share:</strong> Your randomly generated 10-character invite code, and a single row in our <code>friend_pairings</code> table that links your Supabase user ID to the friend's Supabase user ID once they accept. Approval and revocation timestamps are written when you tap Approve or Reject on an incoming request.</li>
+    <li><strong>What the friend sees:</strong> Only the existence of a pairing with you (the row's existence) and a rotating 6-digit override code that is computed locally on their device from the shared invite code using a one-way hash. The friend does NOT see your blocked-apps list, your stats, your email, or any of your usage data. They cannot read your other rows.</li>
+    <li><strong>What you see:</strong> Pending and historical pairing requests in your "Incoming requests" inbox, including the last four characters of the friend's Supabase user ID and the request timestamp. You do not see the friend's email or any other personal data about them.</li>
+    <li><strong>How rotating codes work:</strong> The 6-digit override codes are derived locally on both phones from the same shared invite code plus the current hour. No code, attempt, or successful override is ever sent to our servers. The verification happens entirely on your phone.</li>
+    <li><strong>Real-time updates:</strong> When a friend claims your invite code, Supabase's real-time channel notifies your phone so the inbox banner appears immediately. The notification contains only the changed row.</li>
+    <li><strong>Revoking:</strong> Reject or revoke a pairing in your inbox at any time. The row is marked <code>revoked_at</code> and the friend can no longer generate valid override codes.</li>
+    <li><strong>Deleting:</strong> When you delete your account, all rows where you are <code>user_id</code> or <code>friend_user_id</code> are deleted, regardless of approval state.</li>
+  </ul>
+  <p>Friend Control is opt-in. You can use the app entirely without it (Self Control via 10-second hold + 4-minute waiting period).</p>
 
-  <h2>15. Changes to This Policy</h2>
+  <h2>15. Push Notifications</h2>
+  <p>If you allow notifications, your device registers a local notification permission with the OS. Student Focus currently uses notifications only for local in-app prompts (for example, the Friend Control approval banner). We do not currently send remote push notifications, and no device token is uploaded to our servers. You can revoke notification permission at any time in your device's OS settings.</p>
+
+  <h2>16. Account Deletion</h2>
+  <p>You may delete your account and all associated data at any time:</p>
+  <ul>
+    <li><strong>In-app:</strong> Settings → "Delete my account". This signs you out, clears local data, and triggers server-side deletion of every row keyed to your Supabase user ID (block settings, friend pairings on either side, sessions). Your authentication record at Supabase is also removed.</li>
+    <li><strong>By email:</strong> If you cannot access the in-app option, email <a href="mailto:livefonam@gmail.com">livefonam@gmail.com</a> from the account address and we will perform the same deletion within 30 days.</li>
+  </ul>
+  <p>Account deletion is irreversible. We retain authentication logs (sign-in attempts, IP addresses) at Supabase only for the period required by their policy, after which they are aged out.</p>
+
+  <h2>17. Changes to This Policy</h2>
   <p>We may update this Policy from time to time. When we do, we will update the "Last updated" date at the top. If the change is material (for example, adding a new third-party service or starting to show ads), we will notify you inside the app before it takes effect, and you will have the opportunity to delete your account if you do not agree.</p>
 
-  <h2>16. Contact</h2>
+  <h2>18. Contact</h2>
   <p>Questions, complaints, or requests about your data: <a href="mailto:livefonam@gmail.com">livefonam@gmail.com</a></p>
 
   <p style="margin-top:48px"><a href="index.html">Back</a></p>
