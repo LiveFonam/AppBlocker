@@ -51,7 +51,13 @@
     "plugins": [
       "expo-secure-store",
       "expo-notifications",
-      "./plugins/withAppBlocker"
+      "./plugins/withAppBlocker",
+      [
+        "expo-build-properties",
+        {
+          "ios": { "deploymentTarget": "16.0" }
+        }
+      ]
     ],
     "extra": {
       "eas": {
