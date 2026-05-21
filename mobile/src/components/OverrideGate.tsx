@@ -20,13 +20,16 @@ import { getOutgoingSecret, verifyFriendCode } from '../utils/friendControl'
 let Haptics: any = null
 try { Haptics = require('expo-haptics') } catch (_) {}
 
-// AdMob — lazy-required so Expo Go doesn't choke on the native module
-let AdMob: any = null
-try { AdMob = require('react-native-google-mobile-ads') } catch (_) {}
+// AdMob — lazy-required so Expo Go doesn't choke on the native module.
+// Disabled for v1.0 launch (no real AdMob IDs yet); flip ADS_ENABLED to true
+// and paste the real Ad Unit ID below to ship with ads. See ADMOB_SETUP_LATER.md.
+const ADS_ENABLED = false
 
-// TODO: replace with the real Ad Unit ID from AdMob (Override Gate Rewarded)
-// before App Store submission. While AdMob.TestIds is in use, all ads display
-// as "Test Ad" banners — they pay nothing but exercise the full flow.
+let AdMob: any = null
+if (ADS_ENABLED) {
+  try { AdMob = require('react-native-google-mobile-ads') } catch (_) {}
+}
+
 const REWARDED_AD_UNIT_ID = AdMob?.TestIds?.REWARDED || 'ca-app-pub-3940256099942544/1712485313'
 
 const HOLD_SECONDS = 10

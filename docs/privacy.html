@@ -73,15 +73,14 @@
     <tr><td>Supabase</td><td>Your email, session token, and the block settings you configured (which apps, time windows, daily limits, override method). Block settings are synced so you can recover them on a new phone. If you use Friend Control, also: your 10-character invite code (TEXT), the Supabase user-ID of any friend who paired with you, and approval/revocation timestamps. Real-time channel events for these rows fire to keep your inbox updated. Apple Screen Time / Android Usage Stats data is NOT sent to Supabase.</td><td>United States. See <a href="https://supabase.com/privacy" target="_blank">privacy policy</a></td></tr>
     <tr><td>Expo (Vercel)</td><td>A device push token if you grant notification permission. No personal content is sent.</td><td>United States. <a href="https://expo.dev/privacy" target="_blank">privacy policy</a></td></tr>
     <tr><td>GitHub Pages (raw.githubusercontent.com)</td><td>A request to fetch a public list of university domains (used to validate your email). Your email is not sent in this request.</td><td>United States. <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank">privacy policy</a></td></tr>
-    <tr><td>Google AdMob</td><td>During the 4-minute override-gate waiting period only, Google's Mobile Ads SDK loads rewarded video ads. We configure the SDK with <code>requestNonPersonalizedAdsOnly: true</code>, which means: no IDFA (advertising identifier) is collected, no profile is built about you, and ads are not targeted to you. Google receives: a generic ad request, your device's coarse country/locale (for ad inventory matching), and standard ad measurement fields (impressions, clicks). No personally identifying information from this app is sent.</td><td>United States. <a href="https://policies.google.com/privacy" target="_blank">privacy policy</a></td></tr>
   </table>
-  <p>We do not work with any analytics SDKs, trackers, or third-party advertising beyond non-personalized AdMob ads during the override gate.</p>
+  <p>We do not work with any analytics SDKs, trackers, or third-party advertising in v1.0. (A future version may show non-personalized rewarded video ads during the 4-minute override-gate waiting period — this Policy will be updated at that time.)</p>
 
   <h2>6. What We Do <em>Not</em> Do</h2>
   <ul>
     <li>We do not sell your personal information.</li>
     <li>We do not share your personal information for cross-context behavioral advertising.</li>
-    <li>We show non-personalized rewarded video ads during the 4-minute override-gate waiting period only — see Section 5 for what Google AdMob receives.</li>
+    <li>We do not show advertisements anywhere in v1.0.</li>
     <li>We do not use analytics SDKs (no Firebase Analytics, no Mixpanel, no Amplitude, etc.).</li>
     <li>We do not use crash-reporting SDKs that send data off-device.</li>
     <li>We do not request Apple's IDFA (advertising identifier) or show the App Tracking Transparency prompt.</li>
