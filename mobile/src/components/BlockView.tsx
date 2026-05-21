@@ -55,6 +55,8 @@ type Props = {
   onSetLimits: (id: string, dailyMinutes: number, sessionMinutes: number) => void
   onStartSession: (minutes: number, title: string) => void
   onStopSessionEarly: () => void
+  onPickIosApps?: () => void
+  iosSelectedCount?: number
   bottomInset: number
 }
 
@@ -79,6 +81,8 @@ export function BlockView({
   onAdd,
   onSetLimits,
   onStartSession,
+  onPickIosApps,
+  iosSelectedCount,
   onStopSessionEarly,
   bottomInset,
 }: Props) {
@@ -322,6 +326,26 @@ export function BlockView({
           <Text style={styles.sectionHint}>
             Open a screen, then tap items in the list. Fewer taps here; choices live inside each sheet.
           </Text>
+
+          {Platform.OS === 'ios' && onPickIosApps && (
+            <Pressable
+              onPress={onPickIosApps}
+              style={({ pressed }) => [styles.openRow, styles.openRowSpaced, pressed && { opacity: 0.85 }]}
+            >
+              <View style={styles.openRowLeft}>
+                <Ionicons name="apps-outline" size={22} color={colors.text} />
+                <View style={styles.openRowText}>
+                  <Text style={styles.openRowTitle}>Pick apps via Apple Screen Time</Text>
+                  <Text style={styles.openRowSub}>
+                    {iosSelectedCount && iosSelectedCount > 0
+                      ? `${iosSelectedCount} ${iosSelectedCount === 1 ? 'app' : 'apps'} selected for real blocking`
+                      : 'Required for real blocking — opens iOS picker'}
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.muted3} />
+            </Pressable>
+          )}
 
           <Pressable
             onPress={() => setCatalogOpen(true)}

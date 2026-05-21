@@ -12,6 +12,7 @@
       "bundleIdentifier": "com.nova.novafocus",
       "supportsTablet": false,
       "entitlements": {
+        "com.apple.developer.family-controls": true,
         "com.apple.security.application-groups": [
           "group.nova.appblocker"
         ]
@@ -50,7 +51,15 @@
     "plugins": [
       "expo-secure-store",
       "expo-notifications",
-      "./plugins/withAppBlocker"
+      "./plugins/withAppBlocker",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511",
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "userTrackingUsageDescription": ""
+        }
+      ]
     ],
     "extra": {
       "eas": {

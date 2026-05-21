@@ -9,9 +9,11 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import type { PersistedState } from '../types'
 import { cardRadius, colors, fonts, space } from '../theme'
 import { patchReportedScreenTime } from '../storage'
+import { supabase } from '../supabase'
 import {
   openAppSettings,
   openFocusModesHelp,
@@ -148,12 +150,78 @@ export function SettingsView({
         </Pressable>
       </View>
 
+      <View style={[styles.card, styles.minCard, styles.dangerCard]}>
+        <Text style={[styles.label, { color: '#ff453a' }]}>Danger zone</Text>
+        <Text style={[styles.body, { marginBottom: 20 }]}>
+          Permanently delete your account and every row of your data on our
+          servers. This cannot be undone.
+        </Text>
+        <Pressable
+          onPress={() =>
+            Alert.alert(
+              'Delete your account?',
+              'This wipes your account, friend pairings, and any synced settings. You will be signed out and cannot recover this data. Continue?',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete forever',
+                  style: 'destructive',
+                  onPress: () => {
+                    Alert.alert(
+                      'Really delete?',
+                      'Last chance. Tap Delete to permanently remove your account.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Delete',
+                          style: 'destructive',
+                          onPress: async () => {
+                            try {
+                              const { error } = await supabase.rpc('delete_my_account')
+                              if (error) {
+                                Alert.alert(
+                                  'Could not delete account',
+                                  `Please try again, or email livefonam@gmail.com.\n\nError: ${error.message}`,
+                                )
+                                return
+                              }
+                              try { await supabase.auth.signOut() } catch (_) {}
+                              try { await AsyncStorage.clear() } catch (_) {}
+                              Alert.alert(
+                                'Account deleted',
+                                'Your account and all server data are gone. The app will restart.',
+                                [{ text: 'OK', onPress: onReplaySetup }],
+                              )
+                            } catch (e: any) {
+                              Alert.alert(
+                                'Could not delete account',
+                                e?.message || 'Unknown error. Email livefonam@gmail.com.',
+                              )
+                            }
+                          },
+                        },
+                      ],
+                    )
+                  },
+                },
+              ],
+            )
+          }
+          style={styles.destructiveBtn}
+        >
+          <Text style={styles.destructiveLabel}>Delete my account</Text>
+        </Pressable>
+      </View>
+
       <FriendControlPanel visible={friendPanelOpen} onClose={() => setFriendPanelOpen(false)} />
     </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
+  dangerCard: {
+    borderColor: 'rgba(255, 69, 58, 0.35)',
+  },
   scroll: { flex: 1 },
   content: {
     maxWidth: 672,

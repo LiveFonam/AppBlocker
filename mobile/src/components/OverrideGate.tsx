@@ -20,6 +20,15 @@ import { getOutgoingSecret, verifyFriendCode } from '../utils/friendControl'
 let Haptics: any = null
 try { Haptics = require('expo-haptics') } catch (_) {}
 
+// AdMob — lazy-required so Expo Go doesn't choke on the native module
+let AdMob: any = null
+try { AdMob = require('react-native-google-mobile-ads') } catch (_) {}
+
+// TODO: replace with the real Ad Unit ID from AdMob (Override Gate Rewarded)
+// before App Store submission. While AdMob.TestIds is in use, all ads display
+// as "Test Ad" banners — they pay nothing but exercise the full flow.
+const REWARDED_AD_UNIT_ID = AdMob?.TestIds?.REWARDED || 'ca-app-pub-3940256099942544/1712485313'
+
 const HOLD_SECONDS = 10
 const ADS_SECONDS = 4 * 60
 const GRACE_WINDOW_MS = 45 * 60 * 1000
@@ -63,6 +72,12 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
   const adsHapticMinuteRef = useRef(0)
   const iosVibIntervalRef = useRef<any>(null)
   const lastHapticAtRef = useRef<number>(0)
+  // Ads
+  const rewardedRef = useRef<any>(null)
+  const adUnsubsRef = useRef<Array<() => void>>([])
+  const isShowingAdRef = useRef(false)
+  const adLoadedRef = useRef(false)
+  const [adStatus, setAdStatus] = useState<'idle' | 'loading' | 'ready' | 'playing' | 'failed'>('idle')
 
   useEffect(() => {
     if (!visible) return
@@ -85,6 +100,60 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
     })()
   }, [visible])
 
+  const teardownAd = () => {
+    adUnsubsRef.current.forEach((u) => { try { u() } catch (_) {} })
+    adUnsubsRef.current = []
+    rewardedRef.current = null
+    adLoadedRef.current = false
+    isShowingAdRef.current = false
+  }
+
+  const loadNextAd = () => {
+    if (!AdMob || !AdMob.RewardedAd) { setAdStatus('failed'); return }
+    teardownAd()
+    setAdStatus('loading')
+    const ad = AdMob.RewardedAd.createForAdRequest(REWARDED_AD_UNIT_ID, {
+      requestNonPersonalizedAdsOnly: true,
+    })
+    rewardedRef.current = ad
+    const unsubLoaded = ad.addAdEventListener(AdMob.RewardedAdEventType.LOADED, () => {
+      adLoadedRef.current = true
+      setAdStatus('ready')
+      // Auto-show if we're still in the ads stage and not already showing
+      if (adsTimerRef.current && !isShowingAdRef.current) {
+        try {
+          isShowingAdRef.current = true
+          setAdStatus('playing')
+          ad.show()
+        } catch (_) {
+          isShowingAdRef.current = false
+          setAdStatus('failed')
+        }
+      }
+    })
+    const unsubClosed = ad.addAdEventListener(AdMob.AdEventType.CLOSED, () => {
+      // Hold the "isShowingAdRef" true a brief moment to absorb the AppState
+      // 'inactive'/'background' events AdMob fires when dismissing its UI.
+      setTimeout(() => { isShowingAdRef.current = false }, 1200)
+      // Queue next ad if timer still running
+      if (adsTimerRef.current) {
+        setTimeout(() => { if (adsTimerRef.current) loadNextAd() }, 250)
+      }
+    })
+    const unsubError = ad.addAdEventListener(AdMob.AdEventType.ERROR, () => {
+      isShowingAdRef.current = false
+      setAdStatus('failed')
+      // Retry after 5s as long as the timer is still running
+      setTimeout(() => { if (adsTimerRef.current) loadNextAd() }, 5000)
+    })
+    adUnsubsRef.current = [unsubLoaded, unsubClosed, unsubError]
+    try {
+      ad.load()
+    } catch (_) {
+      setAdStatus('failed')
+    }
+  }
+
   const cancelAll = () => {
     holdingRef.current = false
     if (holdTimerRef.current) {
@@ -95,6 +164,8 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
       clearInterval(adsTimerRef.current)
       adsTimerRef.current = null
     }
+    teardownAd()
+    setAdStatus('idle')
     if (iosVibIntervalRef.current) {
       clearInterval(iosVibIntervalRef.current)
       iosVibIntervalRef.current = null
@@ -108,6 +179,9 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
     if (!visible) return
     const sub = AppState.addEventListener('change', (s) => {
       if (s !== 'active') {
+        // Don't cancel if we're inside a fullscreen rewarded ad — AdMob fires
+        // 'inactive'/'background' on the host app while showing its UI.
+        if (isShowingAdRef.current) return
         cancelAll()
         if (stage === 'ads' || stage === 'hold') {
           setStage(method === 'friend' ? 'friend' : 'hold')
@@ -217,9 +291,12 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
       if (remaining <= 0) {
         clearInterval(adsTimerRef.current)
         adsTimerRef.current = null
+        teardownAd()
         grantOverrideGrace().finally(() => onSuccess())
       }
     }, 250)
+    // Kick off the first rewarded ad. Subsequent ads chain via the CLOSED handler.
+    loadNextAd()
   }
 
   const submitFriendCode = async () => {
@@ -286,7 +363,13 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
               <Text style={styles.sub}>If you leave the app the timer resets and you start over.</Text>
               <View style={styles.adPanel}>
                 <Text style={styles.adPlaceholder}>AD</Text>
-                <Text style={styles.adPlaceholderHint}>(real ads come in a future build)</Text>
+                <Text style={styles.adPlaceholderHint}>
+                  {adStatus === 'loading' ? 'Loading…' :
+                   adStatus === 'ready'   ? 'Ad ready' :
+                   adStatus === 'playing' ? 'Ad playing' :
+                   adStatus === 'failed'  ? 'No ad available — keep waiting' :
+                   'Preparing…'}
+                </Text>
               </View>
               <Text style={styles.timer}>{String(minutes).padStart(2, '0')}:{String(secs).padStart(2, '0')}</Text>
               <Pressable onPress={() => { cancelAll(); onCancel() }} style={styles.cancelBtn}>

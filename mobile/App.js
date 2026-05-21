@@ -839,6 +839,19 @@ function App() {
 
   useEffect(() => {
     (async () => {
+      // Fresh-install detection. AsyncStorage is wiped with the app on iOS/Android,
+      // but expo-secure-store (which holds the Supabase session) survives in iOS
+      // Keychain by default. Without this, a delete+reinstall would silently
+      // re-hydrate onboarding from the server. The marker is set after we've
+      // ensured a clean slate on first launch.
+      const installMarker = await AsyncStorage.getItem('@nova_install_marker');
+      if (!installMarker) {
+        try { await supabase.auth.signOut({ scope: 'local' }); } catch (_) {}
+        await AsyncStorage.setItem('@nova_install_marker', '1');
+        setOnboardingDone(false);
+        return;
+      }
+
       await supabase.auth.getSession();
       let hydrated = false;
       try {
@@ -1003,12 +1016,10 @@ function App() {
 
   // ── Main app (new w1 UI) ────
   return (
-    <SafeAreaProvider>
+    <>
       <StatusBar barStyle="light-content" />
       <Shell onReplaySetup={async () => {
         await AsyncStorage.removeItem('@nova_onboarding_done');
-        // Also clear the server-side flag so the startup hydration at App.js:840+
-        // doesn't immediately re-mark onboarding done on the next launch.
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
@@ -1017,16 +1028,27 @@ function App() {
               .eq('user_id', session.user.id);
           }
         } catch (_) {}
+        // Sign out locally so the next launch's hydration doesn't immediately
+        // re-mark onboarding done from the server profile.
+        try { await supabase.auth.signOut({ scope: 'local' }); } catch (_) {}
         setOnboardingDone(false);
       }} />
-    </SafeAreaProvider>
+    </>
   );
 }
 
 
 const _App = App;
 export default function AppWithBoundary() {
-  return <ErrorBoundary><_App /></ErrorBoundary>;
+  // SafeAreaProvider must wrap EVERY render branch (splash, onboarding, main),
+  // because Onboarding.js and Shell.tsx both call useSafeAreaInsets().
+  return (
+    <ErrorBoundary>
+      <SafeAreaProvider style={{ flex: 1 }}>
+        <_App />
+      </SafeAreaProvider>
+    </ErrorBoundary>
+  );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────

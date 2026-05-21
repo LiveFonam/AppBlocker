@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { Platform, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getOutgoingSecret } from './src/utils/friendControl'
+import { useAppBlocker } from './src/useAppBlocker'
+
+// Lazy load expo-notifications for the session-end local notification
+let Notifications: any = null
+try { Notifications = require('expo-notifications') } catch (_) {}
+const SESSION_END_NOTIF_ID = 'student-focus-session-end'
 import { BottomNav } from './src/components/BottomNav'
 import { Skeleton } from './src/components/Skeleton'
 import { ApprovalBanner } from './src/components/ApprovalBanner'
@@ -64,6 +70,7 @@ export default function Shell({ onReplaySetup }: Props) {
   const insets = useSafeAreaInsets()
   const [tab, setTab] = useState<TabId>('home')
   const [autoOpenFriendPanel, setAutoOpenFriendPanel] = useState(false)
+  const blocker = useAppBlocker()
 
   useEffect(() => {
     (async () => {
@@ -107,6 +114,11 @@ export default function Shell({ onReplaySetup }: Props) {
     if (lastCompletedId.current === activeSession.id) return
     lastCompletedId.current = activeSession.id
     const done = activeSession
+    // Clear native shield + cancel pending notification
+    try { blocker.stopBlocking() } catch (_) {}
+    if (Notifications) {
+      Notifications.cancelScheduledNotificationAsync?.(SESSION_END_NOTIF_ID).catch(() => {})
+    }
     setActiveSession(null)
     setData((d) => {
       if (!d) return d
@@ -194,6 +206,10 @@ export default function Shell({ onReplaySetup }: Props) {
                 1,
                 Math.min(cur.durationMinutes, Math.ceil(elapsedMs / 60_000)),
               )
+              try { blocker.stopBlocking() } catch (_) {}
+              if (Notifications) {
+                Notifications.cancelScheduledNotificationAsync?.(SESSION_END_NOTIF_ID).catch(() => {})
+              }
               setActiveSession(null)
               setData((d) => {
                 if (!d) return d
@@ -251,6 +267,10 @@ export default function Shell({ onReplaySetup }: Props) {
                   : d,
               )
             }
+            onPickIosApps={() => {
+              try { blocker.openAppPicker() } catch (_) {}
+            }}
+            iosSelectedCount={blocker.selectedCount}
             onAdd={(name) =>
               setData((d) => {
                 if (!d) return d
@@ -283,6 +303,20 @@ export default function Shell({ onReplaySetup }: Props) {
                 durationMinutes: minutes,
                 stopAvailableAt: t + STOP_SESSION_DELAY_MS,
               })
+              // Real iOS / Android native blocking
+              try { blocker.startBlocking(0, minutes) } catch (_) {}
+              // Local notification at session end so the user knows to reopen the app
+              if (Platform.OS === 'ios' && Notifications) {
+                Notifications.cancelScheduledNotificationAsync?.(SESSION_END_NOTIF_ID).catch(() => {})
+                Notifications.scheduleNotificationAsync?.({
+                  identifier: SESSION_END_NOTIF_ID,
+                  content: {
+                    title: 'Focus session complete',
+                    body: 'Tap to open Student Focus and clear your blocks.',
+                  },
+                  trigger: { seconds: Math.max(60, minutes * 60) },
+                }).catch(() => {})
+              }
             }}
             onStopSessionEarly={() => {
               const cur = activeSession
@@ -296,6 +330,10 @@ export default function Shell({ onReplaySetup }: Props) {
                 1,
                 Math.min(cur.durationMinutes, Math.ceil(elapsedMs / 60_000)),
               )
+              try { blocker.stopBlocking() } catch (_) {}
+              if (Notifications) {
+                Notifications.cancelScheduledNotificationAsync?.(SESSION_END_NOTIF_ID).catch(() => {})
+              }
               setActiveSession(null)
               setData((d) => {
                 if (!d) return d
