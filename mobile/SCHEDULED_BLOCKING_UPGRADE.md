@@ -1,81 +1,64 @@
-# Upgrading to true scheduled background blocking (v1.1)
+# Scheduled background blocking — RESOLVED in build 25
 
-v1.0 ships with **shield-persists-across-force-kill** blocking, but **not** true scheduled background enforcement. This doc explains what's in place, why we chose this for v1.0, and exactly what to add in v1.1.
+✅ **DONE.** Build 25 ships with a real `DeviceActivityMonitorExtension` iOS App Extension target. The shield auto-clears at session end even when Student Focus is force-killed.
 
-## What works in v1.0 right now
+## What was done
 
-- Apply shield via `ManagedSettingsStore.shield.applications = selection.applicationTokens` when the user starts a focus session.
-- The shield is **system-enforced by iOS**, so it persists even if the user force-quits Student Focus.
-- Session end time is stored in shared `UserDefaults(suiteName: "group.nova.appblocker")` under key `blockingEndAt`.
-- Local UNUserNotification fires at session end (scheduled JS-side via `expo-notifications`) — reminds the user to open the app.
-- When the user opens the app, the native `isBlocking()` check sees `Date.now() > blockingEndAt` and auto-clears the shield.
+1. Installed `@bacons/apple-targets` (^4.0.7) — Expo config plugin by Evan Bacon that injects iOS App Extension targets into the prebuild output without requiring a local Mac.
 
-**Trade-off:** if the user never reopens the app after a session technically ends, the shield stays applied indefinitely. They'd need to either open the app (which clears it) or revoke FamilyControls permission in iOS Settings → Screen Time → Apps that Can Access Screen Time → Student Focus.
+2. Created `mobile/targets/DeviceActivityMonitor/` with:
+   - `expo-target.config.json` — declares `type: "device-activity-monitor"`, deployment target 16.0, the three Family Controls frameworks, and the FamilyControls + App Group entitlements
+   - `index.swift` — the extension class that reads the stored `FamilyActivitySelection` from the shared UserDefaults suite and applies / clears the shield on `intervalDidStart` / `intervalDidEnd`
 
-For a self-control app this is mostly fine — the user opens it regularly. But it's not the spec-compliant Apple-recommended approach.
+3. Re-enabled `DeviceActivityCenter` in `mobile/ios-native/AppBlockerModule.swift`:
+   - `startBlocking(start, end)` registers a non-repeating schedule from now to now+duration
+   - `stopBlocking()` calls `center.stopMonitoring([activityName])` to cancel it
 
-## What v1.1 should add
+4. Set `ios.appleTeamId = "DFYFWYGNJR"` in `app.json` so the plugin can sign the extension target.
 
-A **DeviceActivityMonitorExtension** target. This is a separate iOS app extension that iOS keeps alive (lightweight, runs independently of the main app) and can apply/clear shields on a schedule even when the host app is closed.
+5. Deleted `mobile/ios-native/DeviceActivityMonitorExtension.swift` (moved into `targets/DeviceActivityMonitor/index.swift`).
 
-The Swift code for the extension already exists at `mobile/ios-native/DeviceActivityMonitorExtension.swift`. What's missing is the **Xcode project plumbing** — the extension target.
+## Reverting if it breaks
 
-### Why we deferred this
+If the build fails or the extension misbehaves in production, revert is straightforward:
 
-Expo's prebuild doesn't natively support iOS App Extension targets. Adding one requires writing a custom Expo config plugin that uses the `xcode` library to:
+1. Remove `@bacons/apple-targets` from `app.json` plugins array
+2. Delete the `mobile/targets/` directory
+3. Restore `mobile/ios-native/DeviceActivityMonitorExtension.swift` from git history
+4. In `mobile/ios-native/AppBlockerModule.swift`, comment out the `DeviceActivityCenter` calls again
+5. Rebuild — back to the build-24 behavior (shield persists but doesn't auto-cleanup; local notification reminds user to reopen the app)
 
-1. Create a new `PBXNativeTarget` of type `com.apple.product-type.app-extension`
-2. Add a `PBXSourcesBuildPhase` linking the `.swift` file
-3. Add a `PBXFrameworksBuildPhase` linking FamilyControls, ManagedSettings, DeviceActivity
-4. Generate the extension's `Info.plist` with the `NSExtensionPointIdentifier = com.apple.deviceactivity.monitor-extension`
-5. Generate the extension's `.entitlements` (FamilyControls + App Group)
-6. Embed the extension in the main app via `PBXCopyFilesBuildPhase` (subtype `app_extension`)
-7. Set per-target build settings (deployment target = iOS 16.0, bundle ID = `com.nova.novafocus.DeviceActivityMonitor`, signing config, etc.)
+## How it works at runtime
 
-Without a Mac to verify the resulting Xcode project, this is high-risk — a single off-by-one in the project file structure can cascade into hours of cryptic Xcode/EAS errors. We chose the pragmatic v1.0 path so the launch isn't gated on plugin debugging.
+```
+User taps "Start focus session" in BlockView (25 min)
+         ↓
+Shell.tsx calls blocker.startBlocking(0, 25)
+         ↓
+AppBlockerModule.swift:
+  - Reads familySelection from UserDefaults suite group.nova.appblocker
+  - Applies shield via ManagedSettingsStore.shield.applications
+  - DeviceActivityCenter.startMonitoring schedules intervalEnd at +25min
+         ↓
+User force-kills Student Focus
+         ↓
+Shield is still applied — iOS enforces it system-wide
+         ↓
+25 minutes later
+         ↓
+iOS wakes DeviceActivityMonitorExtension.intervalDidEnd()
+         ↓
+Extension clears the shield via store.shield.applications = nil
+         ↓
+Blocked apps are accessible again, no main-app interaction needed
+```
 
-### How to add it in v1.1
+## App Group bridge
 
-The community has done this for other Apple extension types (Widgets, App Clips, Notification Service Extensions). A reasonable path:
+Both targets (main app + extension) share data via `UserDefaults(suiteName: "group.nova.appblocker")`. Keys:
 
-1. **Use a known-good template.** Look at packages like `@bacons/expo-apple-targets` or community write-ups for ScreenTime/FamilyControls Expo plugins. Several developers have shipped this; copying their plugin and adapting paths/identifiers is much safer than writing from scratch.
-
-2. **Re-enable the DeviceActivity scheduling in `AppBlockerModule.swift`**. The Swift currently has the DeviceActivityCenter calls stripped — add back:
-
-   ```swift
-   import DeviceActivity
-
-   private let center = DeviceActivityCenter()
-   private static let activityName = DeviceActivityName("FocusSession")
-
-   // Inside startBlocking():
-   let schedule = DeviceActivitySchedule(
-     intervalStart: cal.dateComponents([.hour, .minute, .second], from: now),
-     intervalEnd:   cal.dateComponents([.hour, .minute, .second], from: endDate),
-     repeats:       false
-   )
-   center.stopMonitoring([Self.activityName])
-   try center.startMonitoring(Self.activityName, during: schedule)
-
-   // Inside stopBlocking():
-   center.stopMonitoring([Self.activityName])
-   ```
-
-3. **Register the plugin in `mobile/app.json` `plugins` array** — `"./plugins/withDeviceActivityExtension"`.
-
-4. **Build + test on a physical iPhone** (TestFlight). Verify: start a 10-min session → force-kill the app → wait for the session to end → confirm shield drops automatically without reopening.
-
-5. **Drop the local-notification hack** — once the extension handles `intervalDidEnd()` and clears the shield, the local notification is no longer the cleanup mechanism (still useful as a UX reminder, but optional).
-
-### Notes for the plugin writer
-
-- The `xcode` library is finicky about target ordering and group hierarchy. Trial-and-error each step against `eas build --local` if available, or test the prebuild output with `cd ios && pod install && xcodebuild`.
-- The extension's bundle ID must be `<mainBundleId>.<ExtensionName>` per Apple convention.
-- The extension MUST be signed with the same Apple Team and have FamilyControls entitlement enabled on its own App ID identifier in developer.apple.com.
-- If EAS can't auto-provision the new App ID, you'll need to manually create it once in the developer portal.
-
-## TL;DR
-
-- v1.0 = shield persists across force-kill ✓; auto-cleanup at session end relies on user reopening the app
-- v1.1 = add the proper DeviceActivityMonitorExtension target via a custom Expo plugin so auto-cleanup happens server-side from iOS itself
-- Swift file is already written; only the Xcode target injection plugin is missing
+| Key | Type | Written by | Read by |
+|---|---|---|---|
+| `familySelection` | Data (encoded FamilyActivitySelection) | Main app's `showAppPicker` | Both — main app `loadSelection`, extension `applyShield` |
+| `isBlocking` | Bool | Both | Main app `isBlocking()` |
+| `blockingEndAt` | Double (Unix timestamp) | Main app `startBlocking` | Main app `isBlocking()` fallback auto-clear |

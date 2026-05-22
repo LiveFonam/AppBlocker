@@ -9,6 +9,7 @@
       "backgroundColor": "#050e18"
     },
     "ios": {
+      "appleTeamId": "DFYFWYGNJR",
       "bundleIdentifier": "com.nova.novafocus",
       "supportsTablet": false,
       "entitlements": {
@@ -52,6 +53,7 @@
       "expo-secure-store",
       "expo-notifications",
       "./plugins/withAppBlocker",
+      "@bacons/apple-targets",
       [
         "expo-build-properties",
         {

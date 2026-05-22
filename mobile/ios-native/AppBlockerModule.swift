@@ -1,6 +1,7 @@
 import Foundation
 import FamilyControls
 import ManagedSettings
+import DeviceActivity
 import SwiftUI
 import UIKit
 
@@ -10,12 +11,9 @@ class AppBlockerModule: NSObject {
   @objc static func requiresMainQueueSetup() -> Bool { true }
 
   private let store = ManagedSettingsStore(named: .init("default"))
+  private let center = DeviceActivityCenter()
   private let suite = UserDefaults(suiteName: "group.nova.appblocker") ?? .standard
-  // NOTE: v1.0 ships without the DeviceActivityMonitorExtension target. The
-  // ManagedSettings shield still persists across main-app force-kill (iOS
-  // enforces it at the system level), but the auto-cleanup at session-end
-  // is driven by a local UNUserNotification + JS-side check on next launch,
-  // not by DeviceActivity. See SCHEDULED_BLOCKING_UPGRADE.md for v1.1.
+  private static let activityName = DeviceActivityName("FocusSession")
 
   // MARK: - Authorization
 
@@ -79,9 +77,29 @@ class AppBlockerModule: NSObject {
     store.shield.applicationCategories = selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
     store.shield.webDomains = selection.webDomainTokens.isEmpty ? nil : selection.webDomainTokens
 
-    // Persist end time so isBlocking() can auto-cleanup on next call.
+    // Schedule the interval end via DeviceActivity so the extension's
+    // intervalDidEnd() fires and clears the shield even when the main app
+    // is force-killed.
     let durationMinutes = max(1, Int(endMinutes - startMinutes))
-    let endDate = Date().addingTimeInterval(TimeInterval(durationMinutes * 60))
+    let now = Date()
+    let endDate = Calendar.current.date(byAdding: .minute, value: durationMinutes, to: now) ?? now
+    let cal = Calendar.current
+    let startComponents = cal.dateComponents([.hour, .minute, .second], from: now)
+    let endComponents   = cal.dateComponents([.hour, .minute, .second], from: endDate)
+
+    let schedule = DeviceActivitySchedule(
+      intervalStart: startComponents,
+      intervalEnd:   endComponents,
+      repeats:       false
+    )
+
+    center.stopMonitoring([Self.activityName])
+    do {
+      try center.startMonitoring(Self.activityName, during: schedule)
+    } catch {
+      print("[AppBlocker] startMonitoring failed: \(error.localizedDescription)")
+    }
+
     suite.set(true, forKey: "isBlocking")
     suite.set(endDate.timeIntervalSince1970, forKey: "blockingEndAt")
   }
@@ -92,6 +110,8 @@ class AppBlockerModule: NSObject {
     store.shield.applications        = nil
     store.shield.applicationCategories = nil
     store.shield.webDomains          = nil
+
+    center.stopMonitoring([Self.activityName])
 
     suite.set(false, forKey: "isBlocking")
     suite.removeObject(forKey: "blockingEndAt")

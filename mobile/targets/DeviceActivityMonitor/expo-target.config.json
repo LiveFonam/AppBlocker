@@ -1,0 +1,11 @@
+{
+  "type": "device-activity-monitor",
+  "name": "DeviceActivityMonitor",
+  "displayName": "Student Focus Monitor",
+  "deploymentTarget": "16.0",
+  "frameworks": ["FamilyControls", "ManagedSettings", "DeviceActivity"],
+  "entitlements": {
+    "com.apple.developer.family-controls": true,
+    "com.apple.security.application-groups": ["group.nova.appblocker"]
+  }
+}
