@@ -20,15 +20,19 @@ import { getOutgoingSecret, verifyFriendCode } from '../utils/friendControl'
 let Haptics: any = null
 try { Haptics = require('expo-haptics') } catch (_) {}
 
-// AdMob — lazy-required so Expo Go doesn't choke on the native module.
-// Disabled for v1.0 launch (no real AdMob IDs yet); flip ADS_ENABLED to true
-// and paste the real Ad Unit ID below to ship with ads. See ADMOB_SETUP_LATER.md.
+// AdMob — fully removed for the v1.0 launch (ships without ads).
+// The `react-native-google-mobile-ads` package is NOT installed: keeping it as a
+// dependency while the config plugin is absent makes the native SDK crash at
+// launch (missing GADApplicationIdentifier in Info.plist). All the ad-loading
+// machinery below stays intact but no-ops while AdMob is null. To re-enable ads,
+// reinstall the package, re-add its config plugin to app.json, and restore the
+// `require(...)` below — see ADMOB_SETUP_LATER.md.
 const ADS_ENABLED = false
 
 let AdMob: any = null
-if (ADS_ENABLED) {
-  try { AdMob = require('react-native-google-mobile-ads') } catch (_) {}
-}
+// if (ADS_ENABLED) {
+//   try { AdMob = require('react-native-google-mobile-ads') } catch (_) {}
+// }
 
 const REWARDED_AD_UNIT_ID = AdMob?.TestIds?.REWARDED || 'ca-app-pub-3940256099942544/1712485313'
 
