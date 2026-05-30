@@ -1,11 +1,21 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as SecureStore from 'expo-secure-store'
 import { supabase } from '../supabase'
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no I/O/0/1 to avoid confusion
 const SECRET_LEN = 10
 
-const KEY_OUTGOING = '@nova_friend_secret_outgoing' // secret YOU share with your friend (so they can control your blocks)
-const KEY_INCOMING = '@nova_friend_secrets_incoming' // array of secrets shared WITH you (the friends you control)
+// Legacy AsyncStorage keys (plaintext). Kept ONLY so we can migrate existing
+// values into SecureStore on first read, then delete them. Do not write these.
+const LEGACY_KEY_OUTGOING = '@nova_friend_secret_outgoing'
+const LEGACY_KEY_INCOMING = '@nova_friend_secrets_incoming'
+
+// SecureStore keys. SecureStore keys must match [A-Za-z0-9._-] (no '@'), so we
+// drop the leading '@'. The outgoing secret is the root of the override system;
+// storing it in the Keychain/Keystore (not plaintext AsyncStorage) is what stops
+// a device holder from reading it off disk and regenerating valid unblock codes.
+const KEY_OUTGOING = 'nova_friend_secret_outgoing' // secret YOU share with your friend (so they can control your blocks)
+const KEY_INCOMING = 'nova_friend_secrets_incoming' // array of secrets shared WITH you (the friends you control)
 
 export function formatSecretForDisplay(secret: string): string {
   // Current format: 5-5 split (ABCDE-FGHIJ)
@@ -82,21 +92,43 @@ export function verifyFriendCode(secret: string, typedCode: string, now: number 
   const cleaned = (typedCode || '').replace(/\D/g, '')
   if (cleaned.length !== 6) return false
   const hour = currentHourBucket(now)
-  return cleaned === computeFriendCode(secret, hour) || cleaned === computeFriendCode(secret, hour - 1)
+  // Accept the previous, current, AND next hour bucket so a >1 min clock skew
+  // between the two phones near an hour boundary can't silently reject a code.
+  return (
+    cleaned === computeFriendCode(secret, hour) ||
+    cleaned === computeFriendCode(secret, hour - 1) ||
+    cleaned === computeFriendCode(secret, hour + 1)
+  )
 }
 
 // ---------- Storage: outgoing (your secret, your friend controls you) ----------
+// Stored in SecureStore (Keychain/Keystore). On first read we transparently
+// migrate any legacy plaintext AsyncStorage value over and delete the old copy.
 
 export async function getOutgoingSecret(): Promise<string | null> {
-  return await AsyncStorage.getItem(KEY_OUTGOING)
+  try {
+    const secure = await SecureStore.getItemAsync(KEY_OUTGOING)
+    if (secure) return secure
+  } catch (_) {}
+  // Migrate a legacy plaintext value, if present.
+  try {
+    const legacy = await AsyncStorage.getItem(LEGACY_KEY_OUTGOING)
+    if (legacy) {
+      await SecureStore.setItemAsync(KEY_OUTGOING, legacy)
+      await AsyncStorage.removeItem(LEGACY_KEY_OUTGOING)
+      return legacy
+    }
+  } catch (_) {}
+  return null
 }
 
 export async function setOutgoingSecret(secret: string): Promise<void> {
-  await AsyncStorage.setItem(KEY_OUTGOING, secret)
+  await SecureStore.setItemAsync(KEY_OUTGOING, secret)
 }
 
 export async function clearOutgoingSecret(): Promise<void> {
-  await AsyncStorage.removeItem(KEY_OUTGOING)
+  try { await SecureStore.deleteItemAsync(KEY_OUTGOING) } catch (_) {}
+  try { await AsyncStorage.removeItem(LEGACY_KEY_OUTGOING) } catch (_) {}
 }
 
 export async function ensureOutgoingSecret(): Promise<string> {
@@ -109,8 +141,25 @@ export async function ensureOutgoingSecret(): Promise<string> {
 
 // ---------- Storage: incoming (secrets you've accepted from friends) ----------
 
+async function readIncomingRaw(): Promise<string | null> {
+  try {
+    const secure = await SecureStore.getItemAsync(KEY_INCOMING)
+    if (secure) return secure
+  } catch (_) {}
+  // Migrate a legacy plaintext value, if present.
+  try {
+    const legacy = await AsyncStorage.getItem(LEGACY_KEY_INCOMING)
+    if (legacy) {
+      await SecureStore.setItemAsync(KEY_INCOMING, legacy)
+      await AsyncStorage.removeItem(LEGACY_KEY_INCOMING)
+      return legacy
+    }
+  } catch (_) {}
+  return null
+}
+
 export async function getIncomingFriends(): Promise<IncomingFriend[]> {
-  const raw = await AsyncStorage.getItem(KEY_INCOMING)
+  const raw = await readIncomingRaw()
   if (!raw) return []
   try { return JSON.parse(raw) as IncomingFriend[] } catch { return [] }
 }
@@ -126,14 +175,14 @@ export async function addIncomingFriend(secret: string, friendName: string): Pro
     addedAt: new Date().toISOString(),
   }
   filtered.unshift(entry)
-  await AsyncStorage.setItem(KEY_INCOMING, JSON.stringify(filtered))
+  await SecureStore.setItemAsync(KEY_INCOMING, JSON.stringify(filtered))
   return entry
 }
 
 export async function removeIncomingFriend(pairId: string): Promise<void> {
   const all = await getIncomingFriends()
   const next = all.filter(f => f.pairId !== pairId)
-  await AsyncStorage.setItem(KEY_INCOMING, JSON.stringify(next))
+  await SecureStore.setItemAsync(KEY_INCOMING, JSON.stringify(next))
 }
 
 /** Milliseconds until the next hour bucket flips. */
@@ -205,7 +254,7 @@ export type ClaimResult =
 
 /**
  * Friend side: claim a pending pairing by matching secret. Uses UPDATE-with-
- * RETURNING so the existing fp_update_party policy is sufficient — no need for
+ * RETURNING so the existing fp_update_party policy is sufficient, no need for
  * a permissive SELECT policy on unclaimed rows.
  */
 export async function claimPairingBySecret(secret: string): Promise<ClaimResult> {
@@ -229,7 +278,7 @@ export async function claimPairingBySecret(secret: string): Promise<ClaimResult>
 
     if (upErr) return { ok: false, reason: 'network', debug: `UPDATE(${peek}): ${_fmtErr(upErr)}` }
     if (!updated) {
-      // 0 rows updated — could be no_match OR self (we excluded own rows). Disambiguate.
+      // 0 rows updated: could be no_match OR self (we excluded own rows). Disambiguate.
       const { data: selfCheck } = await supabase
         .from('friend_pairings')
         .select('id')

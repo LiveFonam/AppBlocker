@@ -20,13 +20,13 @@ import { getOutgoingSecret, verifyFriendCode } from '../utils/friendControl'
 let Haptics: any = null
 try { Haptics = require('expo-haptics') } catch (_) {}
 
-// AdMob — fully removed for the v1.0 launch (ships without ads).
+// AdMob: fully removed for the v1.0 launch (ships without ads).
 // The `react-native-google-mobile-ads` package is NOT installed: keeping it as a
 // dependency while the config plugin is absent makes the native SDK crash at
 // launch (missing GADApplicationIdentifier in Info.plist). All the ad-loading
 // machinery below stays intact but no-ops while AdMob is null. To re-enable ads,
 // reinstall the package, re-add its config plugin to app.json, and restore the
-// `require(...)` below — see ADMOB_SETUP_LATER.md.
+// `require(...)` below, see ADMOB_SETUP_LATER.md.
 const ADS_ENABLED = false
 
 let AdMob: any = null
@@ -40,6 +40,16 @@ const HOLD_SECONDS = 10
 const ADS_SECONDS = 4 * 60
 const GRACE_WINDOW_MS = 45 * 60 * 1000
 export const OVERRIDE_GRACE_KEY = '@nova_override_grace_until'
+
+// Friend-code brute-force protection (M3). After FRIEND_MAX_ATTEMPTS consecutive
+// failures we lock submission behind an exponential backoff window. The failed
+// counter + lockout-until timestamp are persisted so the lockout survives a
+// modal close / app restart and can't be reset by retrying.
+const FRIEND_FAIL_COUNT_KEY = '@nova_friend_fail_count'
+const FRIEND_LOCKOUT_UNTIL_KEY = '@nova_friend_lockout_until'
+const FRIEND_MAX_ATTEMPTS = 5
+const FRIEND_LOCKOUT_BASE_MS = 30 * 1000
+const FRIEND_LOCKOUT_MAX_MS = 30 * 60 * 1000
 
 export async function grantOverrideGrace(): Promise<void> {
   try {
@@ -82,9 +92,18 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
   // Ads
   const rewardedRef = useRef<any>(null)
   const adUnsubsRef = useRef<Array<() => void>>([])
+  const adTimeoutsRef = useRef<Array<any>>([])
   const isShowingAdRef = useRef(false)
   const adLoadedRef = useRef(false)
   const [adStatus, setAdStatus] = useState<'idle' | 'loading' | 'ready' | 'playing' | 'failed'>('idle')
+
+  // Tracks whether the gate is mounted + visible so async callbacks (grace
+  // grant, lockout ticks) don't fire onSuccess / setState after teardown.
+  const mountedRef = useRef(true)
+
+  // Friend-code brute-force protection (M3). Persisted per gate in AsyncStorage.
+  const [lockoutRemaining, setLockoutRemaining] = useState(0)
+  const lockoutTimerRef = useRef<any>(null)
 
   useEffect(() => {
     if (!visible) return
@@ -104,12 +123,19 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
       setAdsRemaining(ADS_SECONDS)
       setFriendCode('')
       setFriendErr('')
+      // Re-sync any persisted friend-code lockout so a reopened modal still
+      // shows the countdown instead of an immediately-submittable form (M3).
+      await syncLockout()
     })()
   }, [visible])
 
   const teardownAd = () => {
     adUnsubsRef.current.forEach((u) => { try { u() } catch (_) {} })
     adUnsubsRef.current = []
+    // Clear any pending ad-lifecycle timers (CLOSED/ERROR follow-ups) so they
+    // don't fire after teardown or leak across an ad re-enable (N2).
+    adTimeoutsRef.current.forEach((id) => { try { clearTimeout(id) } catch (_) {} })
+    adTimeoutsRef.current = []
     rewardedRef.current = null
     adLoadedRef.current = false
     isShowingAdRef.current = false
@@ -141,17 +167,17 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
     const unsubClosed = ad.addAdEventListener(AdMob.AdEventType.CLOSED, () => {
       // Hold the "isShowingAdRef" true a brief moment to absorb the AppState
       // 'inactive'/'background' events AdMob fires when dismissing its UI.
-      setTimeout(() => { isShowingAdRef.current = false }, 1200)
+      adTimeoutsRef.current.push(setTimeout(() => { isShowingAdRef.current = false }, 1200))
       // Queue next ad if timer still running
       if (adsTimerRef.current) {
-        setTimeout(() => { if (adsTimerRef.current) loadNextAd() }, 250)
+        adTimeoutsRef.current.push(setTimeout(() => { if (adsTimerRef.current) loadNextAd() }, 250))
       }
     })
     const unsubError = ad.addAdEventListener(AdMob.AdEventType.ERROR, () => {
       isShowingAdRef.current = false
       setAdStatus('failed')
       // Retry after 5s as long as the timer is still running
-      setTimeout(() => { if (adsTimerRef.current) loadNextAd() }, 5000)
+      adTimeoutsRef.current.push(setTimeout(() => { if (adsTimerRef.current) loadNextAd() }, 5000))
     })
     adUnsubsRef.current = [unsubLoaded, unsubClosed, unsubError]
     try {
@@ -186,7 +212,7 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
     if (!visible) return
     const sub = AppState.addEventListener('change', (s) => {
       if (s !== 'active') {
-        // Don't cancel if we're inside a fullscreen rewarded ad — AdMob fires
+        // Don't cancel if we're inside a fullscreen rewarded ad. AdMob fires
         // 'inactive'/'background' on the host app while showing its UI.
         if (isShowingAdRef.current) return
         cancelAll()
@@ -199,7 +225,13 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
   }, [visible, stage, method])
 
   useEffect(() => {
+    mountedRef.current = true
     return () => {
+      mountedRef.current = false
+      if (lockoutTimerRef.current) {
+        clearInterval(lockoutTimerRef.current)
+        lockoutTimerRef.current = null
+      }
       cancelAll()
     }
   }, [])
@@ -299,14 +331,85 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
         clearInterval(adsTimerRef.current)
         adsTimerRef.current = null
         teardownAd()
-        grantOverrideGrace().finally(() => onSuccess())
+        // Grace is always granted (the timer completed), but only call back
+        // into the parent if we're still mounted/visible so we don't trigger a
+        // navigation/setState on an unmounted gate (L10).
+        grantOverrideGrace().finally(() => { if (mountedRef.current) onSuccess() })
       }
     }, 250)
     // Kick off the first rewarded ad. Subsequent ads chain via the CLOSED handler.
     loadNextAd()
   }
 
+  // Reads the persisted lockout-until and starts/keeps a 1s countdown ticking so
+  // the Submit button stays disabled with a live "try again in Xs" message.
+  const syncLockout = async () => {
+    let until = 0
+    try {
+      const raw = await AsyncStorage.getItem(FRIEND_LOCKOUT_UNTIL_KEY)
+      until = raw ? Number(raw) : 0
+    } catch (_) {}
+    if (!Number.isFinite(until)) until = 0
+
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((until - Date.now()) / 1000))
+      if (mountedRef.current) setLockoutRemaining(remaining)
+      if (remaining <= 0 && lockoutTimerRef.current) {
+        clearInterval(lockoutTimerRef.current)
+        lockoutTimerRef.current = null
+      }
+    }
+
+    if (lockoutTimerRef.current) {
+      clearInterval(lockoutTimerRef.current)
+      lockoutTimerRef.current = null
+    }
+    tick()
+    if (until > Date.now()) {
+      lockoutTimerRef.current = setInterval(tick, 1000)
+    }
+  }
+
+  // Records a failed attempt and, once the threshold is crossed, sets an
+  // exponentially backed-off lockout window (capped). Returns the seconds the
+  // caller is now locked out for (0 if still under the threshold).
+  const registerFriendFailure = async (): Promise<number> => {
+    let count = 0
+    try {
+      const raw = await AsyncStorage.getItem(FRIEND_FAIL_COUNT_KEY)
+      count = raw ? Number(raw) : 0
+    } catch (_) {}
+    if (!Number.isFinite(count) || count < 0) count = 0
+    count += 1
+
+    let lockoutSecs = 0
+    try {
+      await AsyncStorage.setItem(FRIEND_FAIL_COUNT_KEY, String(count))
+      if (count >= FRIEND_MAX_ATTEMPTS) {
+        const over = count - FRIEND_MAX_ATTEMPTS
+        const windowMs = Math.min(FRIEND_LOCKOUT_MAX_MS, FRIEND_LOCKOUT_BASE_MS * Math.pow(2, over))
+        const until = Date.now() + windowMs
+        await AsyncStorage.setItem(FRIEND_LOCKOUT_UNTIL_KEY, String(until))
+        lockoutSecs = Math.ceil(windowMs / 1000)
+      }
+    } catch (_) {}
+    return lockoutSecs
+  }
+
+  const clearFriendFailures = async () => {
+    try {
+      await AsyncStorage.multiRemove([FRIEND_FAIL_COUNT_KEY, FRIEND_LOCKOUT_UNTIL_KEY])
+    } catch (_) {}
+  }
+
   const submitFriendCode = async () => {
+    // Hard-stop while locked out (M3): re-check the persisted timestamp in case
+    // the in-memory countdown is stale, and refresh the visible counter.
+    if (lockoutRemaining > 0) {
+      await syncLockout()
+      return
+    }
+
     const cleaned = friendCode.replace(/\D/g, '')
     if (cleaned.length !== 6) {
       setFriendErr('Enter the 6-digit code from your friend.')
@@ -318,10 +421,18 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
       return
     }
     if (verifyFriendCode(secret, cleaned)) {
+      await clearFriendFailures()
+      if (mountedRef.current) setLockoutRemaining(0)
       await grantOverrideGrace()
-      onSuccess()
+      if (mountedRef.current) onSuccess()
     } else {
-      setFriendErr('Code does not match. Ask your friend for the current one.')
+      const lockoutSecs = await registerFriendFailure()
+      if (lockoutSecs > 0) {
+        await syncLockout()
+        setFriendErr(`Too many wrong codes. Try again in ${lockoutSecs}s.`)
+      } else {
+        setFriendErr('Code does not match. Ask your friend for the current one.')
+      }
     }
   }
 
@@ -374,7 +485,7 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
                   {adStatus === 'loading' ? 'Loading…' :
                    adStatus === 'ready'   ? 'Ad ready' :
                    adStatus === 'playing' ? 'Ad playing' :
-                   adStatus === 'failed'  ? 'No ad available — keep waiting' :
+                   adStatus === 'failed'  ? 'No ad available, keep waiting' :
                    'Preparing…'}
                 </Text>
               </View>
@@ -400,8 +511,15 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
                 autoFocus
               />
               {!!friendErr && <Text style={styles.err}>{friendErr}</Text>}
-              <Pressable onPress={submitFriendCode} style={[styles.primaryBtn, friendCode.length < 6 && { opacity: 0.4 }]} disabled={friendCode.length < 6}>
-                <Text style={styles.primaryLabel}>Submit</Text>
+              {lockoutRemaining > 0 && (
+                <Text style={styles.err}>Too many wrong codes. Try again in {lockoutRemaining}s.</Text>
+              )}
+              <Pressable
+                onPress={submitFriendCode}
+                style={[styles.primaryBtn, (friendCode.length < 6 || lockoutRemaining > 0) && { opacity: 0.4 }]}
+                disabled={friendCode.length < 6 || lockoutRemaining > 0}
+              >
+                <Text style={styles.primaryLabel}>{lockoutRemaining > 0 ? `Wait ${lockoutRemaining}s` : 'Submit'}</Text>
               </Pressable>
               <Pressable onPress={() => { cancelAll(); onCancel() }} style={styles.cancelBtn}>
                 <Text style={styles.cancelLabel}>Cancel</Text>

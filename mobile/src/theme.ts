@@ -1,4 +1,4 @@
-import { Platform, TextStyle } from 'react-native'
+import { TextStyle } from 'react-native'
 
 export const colors = {
   bg: '#000000',
@@ -21,20 +21,19 @@ export const appBrandName = 'Student Focus'
 
 export const cardRadius = 16
 
-/** iOS: San Francisco via system font weights. Android: Inter. */
-function face(
-  iosWeight: NonNullable<TextStyle['fontWeight']>,
-  androidFamily: string,
-): TextStyle {
-  return Platform.OS === 'ios'
-    ? { fontWeight: iosWeight }
-    : { fontFamily: androidFamily }
+/**
+ * System font on both platforms via fontWeight. No custom font family is loaded
+ * anywhere (no useFonts), so mapping Android to Inter_* would silently drop those
+ * weights. Relying on fontWeight keeps Android and iOS consistent.
+ */
+function face(weight: NonNullable<TextStyle['fontWeight']>): TextStyle {
+  return { fontWeight: weight }
 }
 
 export const fonts = {
-  light: face('300', 'Inter_300Light'),
-  regular: face('400', 'Inter_400Regular'),
-  medium: face('500', 'Inter_500Medium'),
-  semibold: face('600', 'Inter_600SemiBold'),
-  bold: face('700', 'Inter_700Bold'),
+  light: face('300'),
+  regular: face('400'),
+  medium: face('500'),
+  semibold: face('600'),
+  bold: face('700'),
 }

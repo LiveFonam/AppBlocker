@@ -83,6 +83,9 @@ function parseTimeStr(raw) {
   const min = m[2] ? parseInt(m[2], 10) : 0;
   const ampm = m[3];
   if (isNaN(h) || h < 0 || h > 23 || min < 0 || min > 59) return null;
+  // With a meridiem the hour must be a valid 12-hour clock value (1..12);
+  // reject "13 PM", "20 PM", etc. instead of silently dropping the AM/PM.
+  if (ampm && (h < 1 || h > 12)) return null;
   if (ampm === 'PM' && h < 12) h += 12;
   if (ampm === 'AM' && h === 12) h = 0;
   if (h > 23) return null;
@@ -361,6 +364,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       selectedApps, startMins, endMins, blockingMode, email,
       enforcementTypes, sameForAll, dailyLimitMins, overrideMethod: overrideMethod || 'self',
       perAppConfig,
+      actualMins: Math.round(actualHours * 60),
     });
   };
 
@@ -768,7 +772,9 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
           onChangeText={setStartInput}
           onBlur={() => {
             const m = parseTimeStr(startInput);
-            if (m !== null) setStartMins(m);
+            // Reject start === end: a zero-length window reads as a full 24h block.
+            if (m !== null && m !== endMins) setStartMins(m);
+            else if (m !== null && m === endMins) { try { Haptics && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch (_) {} }
             setStartInput('');
           }}
           keyboardType="default"
@@ -784,7 +790,9 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
           onChangeText={setEndInput}
           onBlur={() => {
             const m = parseTimeStr(endInput);
-            if (m !== null) setEndMins(m);
+            // Reject end === start: a zero-length window reads as a full 24h block.
+            if (m !== null && m !== startMins) setEndMins(m);
+            else if (m !== null && m === startMins) { try { Haptics && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch (_) {} }
             setEndInput('');
           }}
           keyboardType="default"
@@ -895,11 +903,11 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
                         <View style={[st.timeBox, { flex: 1 }]}>
                           <TouchableOpacity onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, startMins: Math.max(0, cfg.startMins - 15) } }))}><Text style={st.timeAdj}>-</Text></TouchableOpacity>
                           <Text style={st.timeTxt}>{tStr(cfg.startMins)}</Text>
-                          <TouchableOpacity onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, startMins: Math.min(1425, cfg.startMins + 15) } }))}><Text style={st.timeAdj}>+</Text></TouchableOpacity>
+                          <TouchableOpacity onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, startMins: Math.min(1425, cfg.endMins - 15, cfg.startMins + 15) } }))}><Text style={st.timeAdj}>+</Text></TouchableOpacity>
                         </View>
                         <Text style={st.timeSep}>to</Text>
                         <View style={[st.timeBox, { flex: 1 }]}>
-                          <TouchableOpacity onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, endMins: Math.max(15, cfg.endMins - 15) } }))}><Text style={st.timeAdj}>-</Text></TouchableOpacity>
+                          <TouchableOpacity onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, endMins: Math.max(15, cfg.startMins + 15, cfg.endMins - 15) } }))}><Text style={st.timeAdj}>-</Text></TouchableOpacity>
                           <Text style={st.timeTxt}>{tStr(cfg.endMins)}</Text>
                           <TouchableOpacity onPress={() => setPerAppConfig(p => ({ ...p, [appId]: { ...cfg, endMins: Math.min(1439, cfg.endMins + 15) } }))}><Text style={st.timeAdj}>+</Text></TouchableOpacity>
                         </View>

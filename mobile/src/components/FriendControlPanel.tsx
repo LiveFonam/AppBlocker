@@ -61,6 +61,26 @@ export function FriendControlPanel({ visible, onClose }: Props) {
   const [actingId, setActingId] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const timerRef = useRef<any>(null)
+  const mountedRef = useRef(true)
+  const toastTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  /** Track toast dismiss timers so they can be cancelled if we unmount mid-countdown. */
+  const scheduleToast = (cb: () => void, ms: number) => {
+    toastTimersRef.current.push(
+      setTimeout(() => {
+        if (mountedRef.current) cb()
+      }, ms),
+    )
+  }
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      toastTimersRef.current.forEach((id) => clearTimeout(id))
+      toastTimersRef.current = []
+    }
+  }, [])
 
   useEffect(() => {
     if (!visible) return
@@ -89,14 +109,18 @@ export function FriendControlPanel({ visible, onClose }: Props) {
   const handleApprovePairing = async (id: string) => {
     setActingId(id)
     await approvePairing(id)
-    setPairings(await listAllPairings())
+    const next = await listAllPairings()
+    if (!mountedRef.current) return
+    setPairings(next)
     setActingId(null)
   }
 
   const handleRejectPairing = async (id: string) => {
     setActingId(id)
     await rejectPairing(id)
-    setPairings(await listAllPairings())
+    const next = await listAllPairings()
+    if (!mountedRef.current) return
+    setPairings(next)
     setActingId(null)
   }
 
@@ -112,19 +136,20 @@ export function FriendControlPanel({ visible, onClose }: Props) {
 
   const reportRegisterError = (reason: string, debug?: string) => {
     const base = reason === 'not_signed_in'
-      ? "Code not saved — finish onboarding first."
-      : "Code not saved — server rejected it."
+      ? "Code not saved, finish onboarding first."
+      : "Code not saved, server rejected it."
     const msg = debug ? `${base}\nDEBUG: ${debug}` : base
     setCopyToast(msg)
-    setTimeout(() => setCopyToast(''), 12000)
+    scheduleToast(() => setCopyToast(''), 12000)
   }
 
   const handleGenerate = async () => {
     const secret = await ensureOutgoingSecret()
     setOutgoingSecret(secret)
     const res: any = await registerOutgoingPairing(secret)
+    if (!mountedRef.current) return
     if (!res.ok) reportRegisterError(res.reason, res.debug)
-    else { setCopyToast(`Code ready to share${res.debug ? `\nDEBUG: ${res.debug}` : ''}`); setTimeout(() => setCopyToast(''), 8000) }
+    else { setCopyToast(`Code ready to share${res.debug ? `\nDEBUG: ${res.debug}` : ''}`); scheduleToast(() => setCopyToast(''), 8000) }
   }
 
   const handleShare = async () => {
@@ -141,8 +166,9 @@ export function FriendControlPanel({ visible, onClose }: Props) {
     if (!outgoingSecret) return
     try {
       await Clipboard.setStringAsync(formatSecretForDisplay(outgoingSecret))
+      if (!mountedRef.current) return
       setCopyToast('Code copied')
-      setTimeout(() => setCopyToast(''), 1800)
+      scheduleToast(() => setCopyToast(''), 1800)
     } catch (_) {}
   }
 
@@ -167,11 +193,11 @@ export function FriendControlPanel({ visible, onClose }: Props) {
   const handlePasteFromClipboard = async () => {
     try {
       const text = await Clipboard.getStringAsync()
-      if (text) {
+      if (text && mountedRef.current) {
         setPasteInput(text)
         setPasteErr('')
         setPasteToast('Pasted')
-        setTimeout(() => setPasteToast(''), 1500)
+        scheduleToast(() => setPasteToast(''), 1500)
       }
     } catch (_) {}
   }
@@ -185,11 +211,12 @@ export function FriendControlPanel({ visible, onClose }: Props) {
     setPasteErr('')
     const name = friendNameInput.trim() || parsed.from || 'Friend'
     const result: any = await claimPairingBySecret(parsed.secret)
+    if (!mountedRef.current) return
     if (!result.ok) {
       const base = ({
         not_signed_in: "You're not signed in. Finish onboarding (email + verification code) first.",
         no_match: "Code not found. Ask your friend to tap Generate or Share in their app first, then try again.",
-        self: "That's your own code — you can't claim your own pairing.",
+        self: "That's your own code, you can't claim your own pairing.",
         network: "Couldn't reach the server. Check your connection and try again.",
       })[result.reason] || 'Could not register this pairing.'
       const msg = result.debug ? `${base}\nDEBUG: ${result.debug}` : base
@@ -197,16 +224,20 @@ export function FriendControlPanel({ visible, onClose }: Props) {
       return
     }
     await addIncomingFriend(parsed.secret, name)
-    setIncoming(await getIncomingFriends())
+    const friends = await getIncomingFriends()
+    if (!mountedRef.current) return
+    setIncoming(friends)
     setPasteInput('')
     setFriendNameInput('')
-    setPasteToast('Sent — your friend will get an approval request')
-    setTimeout(() => setPasteToast(''), 4000)
+    setPasteToast('Sent, your friend will get an approval request')
+    scheduleToast(() => setPasteToast(''), 4000)
   }
 
   const handleRemove = async (pairId: string) => {
     await removeIncomingFriend(pairId)
-    setIncoming(await getIncomingFriends())
+    const friends = await getIncomingFriends()
+    if (!mountedRef.current) return
+    setIncoming(friends)
   }
 
   const hour = currentHourBucket(now)
@@ -405,8 +436,9 @@ export function FriendControlPanel({ visible, onClose }: Props) {
                           onPress={async () => {
                             try {
                               await Clipboard.setStringAsync(code)
+                              if (!mountedRef.current) return
                               setCopyToast(`Copied ${code}`)
-                              setTimeout(() => setCopyToast(''), 1800)
+                              scheduleToast(() => setCopyToast(''), 1800)
                             } catch (_) {}
                           }}
                           hitSlop={10}

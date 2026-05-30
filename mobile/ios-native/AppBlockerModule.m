@@ -5,10 +5,13 @@
 RCT_EXTERN_METHOD(requestAuthorization:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 
-RCT_EXTERN_METHOD(showAppPicker)
+RCT_EXTERN_METHOD(showAppPicker:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(startBlocking:(double)startMinutes
-                  endMinutes:(double)endMinutes)
+                  endMinutes:(double)endMinutes
+                  resolve:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(stopBlocking)
 

@@ -14,15 +14,19 @@ function checkDomain(set, domain) {
 
 export async function isUniversityDomain(domain) {
   if (!_domainSet) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
     try {
       const res = await fetch(
         'https://raw.githubusercontent.com/Hipo/university-domains-list/master/world_universities_and_domains.json',
-        { signal: AbortSignal.timeout(8000) }
+        { signal: ctrl.signal }
       );
       const list = await res.json();
       _domainSet = new Set(list.flatMap(u => u.domains));
     } catch (_) {
       _domainSet = new Set();
+    } finally {
+      clearTimeout(t);
     }
   }
   if (_domainSet.size > 0) return checkDomain(_domainSet, domain);

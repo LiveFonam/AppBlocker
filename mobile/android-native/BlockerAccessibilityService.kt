@@ -7,9 +7,13 @@ import android.content.Intent
 import android.view.accessibility.AccessibilityEvent
 import org.json.JSONArray
 
-// Accessibility Service — runs in background and redirects blocked apps.
+// Accessibility Service: runs in background and redirects blocked apps.
 // User must manually enable it in Settings > Accessibility > Nova Focus.
 class BlockerAccessibilityService : AccessibilityService() {
+
+    // Debounce redirects so we do not relaunch on every window event (avoids flicker).
+    private var lastRedirectAt = 0L
+    private val redirectCooldownMs = 1500L
 
     override fun onServiceConnected() {
         serviceInfo = AccessibilityServiceInfo().apply {
@@ -35,7 +39,15 @@ class BlockerAccessibilityService : AccessibilityService() {
         } catch (e: Exception) { emptySet() }
 
         if (pkg in blocked && pkg != packageName) {
-            // Redirect to our app — shows the blocking dashboard
+            // Ignore repeat redirects within the cooldown window to avoid rapid flicker.
+            val now = System.currentTimeMillis()
+            if (now - lastRedirectAt < redirectCooldownMs) return
+            lastRedirectAt = now
+
+            // Prefer sending the user home over relaunching our full app on every event.
+            if (performGlobalAction(GLOBAL_ACTION_HOME)) return
+
+            // Fallback: redirect to our app, shows the blocking dashboard.
             val intent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 putExtra("blockedApp", pkg)

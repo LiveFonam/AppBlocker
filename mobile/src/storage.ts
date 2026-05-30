@@ -293,7 +293,11 @@ export async function loadPersisted(): Promise<PersistedState> {
       return initial
     }
     const raw = JSON.parse(rawStr) as Record<string, unknown>
-    return migrate(raw)
+    const migrated = migrate(raw)
+    // Persist once so re-stamped fields (e.g. setupCompletedAt when missing) stick
+    // instead of being recomputed as `now` on every cold start ("days in app" drift).
+    await savePersisted(migrated)
+    return migrated
   } catch {
     const initial = buildMinimalState()
     await savePersisted(initial)

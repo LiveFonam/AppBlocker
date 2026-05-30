@@ -5,7 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
       "backgroundColor": "#050e18"
     },
     "ios": {
@@ -37,12 +40,11 @@
     "android": {
       "package": "com.nova.novafocus",
       "adaptiveIcon": {
-        "backgroundColor": "#050e18"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
       },
       "permissions": [
-        "android.permission.BIND_ACCESSIBILITY_SERVICE",
         "android.permission.PACKAGE_USAGE_STATS",
-        "android.permission.QUERY_ALL_PACKAGES",
         "android.permission.POST_NOTIFICATIONS"
       ]
     },

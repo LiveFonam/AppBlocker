@@ -1,7 +1,10 @@
 import type { DayUsage, SessionEntry } from '../types'
 
 export function dateKey(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 export function formatSessionWhen(iso: string): string {
@@ -167,8 +170,8 @@ export function addOrMergeDaily(
   return next
 }
 
-export function focusTrendPercent(daily: DayUsage[]): number {
-  if (daily.length < 4) return 12
+export function focusTrendPercent(daily: DayUsage[]): number | null {
+  if (daily.length < 4) return null
   const sorted = [...daily].sort((a, b) => a.date.localeCompare(b.date))
   const half = Math.floor(sorted.length / 2)
   const a = sorted.slice(0, half)
@@ -204,7 +207,7 @@ export function weekOverWeekReductionLabel(
 ): string {
   const thisWeek = sumMinutesForLastDays(daily, 0, fallbackMinutes)
   const lastWeek = sumMinutesForLastDays(daily, 7, fallbackMinutes)
-  if (lastWeek === 0) return '-42%'
+  if (lastWeek === 0) return '-'
   const pct = Math.round(((lastWeek - thisWeek) / lastWeek) * 100)
   if (pct > 0) return `-${pct}%`
   if (pct < 0) return `+${Math.abs(pct)}%`

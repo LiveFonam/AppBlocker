@@ -1,10 +1,13 @@
 package com.nova.appblocker
 
+import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.os.Process
 import com.facebook.react.bridge.*
 import org.json.JSONArray
 
@@ -21,13 +24,20 @@ class AppBlockerModule(private val reactContext: ReactApplicationContext) :
     fun getInstalledApps(promise: Promise) {
         try {
             val pm = reactContext.packageManager
-            val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-                .filter { pm.getLaunchIntentForPackage(it.packageName) != null }
-                .filter { it.packageName != reactContext.packageName }
-                .map { info ->
+            // Query launchable activities directly (works with a <queries> launcher element
+            // in the manifest, without QUERY_ALL_PACKAGES).
+            val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            val apps = pm.queryIntentActivities(launcherIntent, 0)
+                .map { it.activityInfo.packageName }
+                .distinct()
+                .filter { it != reactContext.packageName }
+                .map { packageName ->
+                    val label = try {
+                        pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+                    } catch (e: Exception) { packageName }
                     Arguments.createMap().apply {
-                        putString("id",   info.packageName)
-                        putString("name", pm.getApplicationLabel(info).toString())
+                        putString("id",   packageName)
+                        putString("name", label)
                         putString("icon", "")   // icons require base64 encoding; add if needed
                         putString("color", "#888888")
                     }
@@ -40,7 +50,7 @@ class AppBlockerModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
-    // Start blocking — saves package list and starts Accessibility Service
+    // Start blocking: saves package list and starts Accessibility Service
     @ReactMethod
     fun startBlocking(packages: ReadableArray, promise: Promise) {
         try {
@@ -78,10 +88,48 @@ class AppBlockerModule(private val reactContext: ReactApplicationContext) :
         promise.resolve(arr.length())
     }
 
+    // Checks whether the user has granted usage-access permission to this app.
+    private fun hasUsageAccess(): Boolean {
+        val appOps = reactContext.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager
+            ?: return false
+        val mode = appOps.checkOpNoThrow(
+            AppOpsManager.OPSTR_GET_USAGE_STATS,
+            Process.myUid(),
+            reactContext.packageName
+        )
+        return mode == AppOpsManager.MODE_ALLOWED
+    }
+
+    @ReactMethod
+    fun hasUsageAccess(promise: Promise) {
+        promise.resolve(hasUsageAccess())
+    }
+
+    // Opens the system Usage Access settings so the user can grant permission.
+    @ReactMethod
+    fun openUsageAccessSettings(promise: Promise) {
+        try {
+            val intent = Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            reactContext.startActivity(intent)
+            promise.resolve(null)
+        } catch (e: ActivityNotFoundException) {
+            promise.reject("NO_USAGE_ACCESS_SETTINGS", e.message, e)
+        }
+    }
+
     @ReactMethod
     fun getUsageStats(promise: Promise) {
         try {
-            val usm = reactContext.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            if (!hasUsageAccess()) {
+                promise.reject("NO_USAGE_ACCESS", "Usage access permission not granted")
+                return
+            }
+            val usm = reactContext.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+                ?: run {
+                    promise.reject("NO_USAGE_STATS_SERVICE", "UsageStatsManager unavailable")
+                    return
+                }
             val end = System.currentTimeMillis()
             val start = end - 24L * 60 * 60 * 1000
             val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_BEST, start, end)
@@ -111,9 +159,13 @@ class AppBlockerModule(private val reactContext: ReactApplicationContext) :
     // Opens Android Accessibility Settings so user can enable the service
     @ReactMethod
     fun openAccessibilitySettings(promise: Promise) {
-        val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        reactContext.startActivity(intent)
-        promise.resolve(null)
+        try {
+            val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            reactContext.startActivity(intent)
+            promise.resolve(null)
+        } catch (e: ActivityNotFoundException) {
+            promise.reject("NO_ACCESSIBILITY_SETTINGS", e.message, e)
+        }
     }
 }

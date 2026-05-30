@@ -13,22 +13,32 @@ export function useAppBlocker() {
   // Load persisted state
   useEffect(() => {
     (async () => {
-      const [blocking, count, pkgs] = await Promise.all([
-        AsyncStorage.getItem('@nova_is_blocking'),
-        AsyncStorage.getItem('@nova_selected_count'),
-        AsyncStorage.getItem('@nova_blocked_packages'),
-      ]);
-      setIsBlocking(blocking === 'true');
-      setSelectedCount(count ? parseInt(count, 10) : 0);
-      setBlockedPackages(pkgs ? JSON.parse(pkgs) : []);
+      try {
+        const [blocking, count, pkgs] = await Promise.all([
+          AsyncStorage.getItem('@nova_is_blocking'),
+          AsyncStorage.getItem('@nova_selected_count'),
+          AsyncStorage.getItem('@nova_blocked_packages'),
+        ]);
+        setIsBlocking(blocking === 'true');
+        setSelectedCount(count ? parseInt(count, 10) : 0);
+        // Guard the parse: a corrupted/legacy value must not throw and abort hydration.
+        let parsed = [];
+        try { parsed = pkgs ? JSON.parse(pkgs) : []; } catch (_) { parsed = []; }
+        if (!Array.isArray(parsed)) parsed = [];
+        setBlockedPackages(parsed);
+      } catch (_) {}
 
       if (Platform.OS === 'ios' && Native) {
-        const [c, b] = await Promise.all([
-          Native.getSelectedCount(),
-          Native.isBlocking(),
-        ]);
-        setSelectedCount(c);
-        setIsBlocking(b);
+        // A rejecting native call (e.g. FamilyControls not yet authorized at cold
+        // start) must not break hydration or surface as an unhandled rejection.
+        try {
+          const [c, b] = await Promise.all([
+            Native.getSelectedCount(),
+            Native.isBlocking(),
+          ]);
+          setSelectedCount(c);
+          setIsBlocking(b);
+        } catch (_) {}
       }
     })();
   }, []);
@@ -47,25 +57,45 @@ export function useAppBlocker() {
         Alert.alert('Native Build Required', 'Run the app via Xcode (not Expo Go) to use the system app picker.');
         return;
       }
-      await Native.showAppPicker();
-      const c = await Native.getSelectedCount();
-      setSelectedCount(c);
-      await AsyncStorage.setItem('@nova_selected_count', String(c));
+      // showAppPicker is now a promise that can reject (no presenter available,
+      // iOS < 16). Swallow the rejection so it never surfaces as an unhandled
+      // rejection; if the picker never presented there is nothing to re-read.
+      try {
+        await Native.showAppPicker();
+        const c = await Native.getSelectedCount();
+        setSelectedCount(c);
+        await AsyncStorage.setItem('@nova_selected_count', String(c));
+      } catch (_) {}
     } else {
       setShowAndroidPicker?.(true);
     }
   }, []);
 
   const startBlocking = useCallback(async (startMinutes, endMinutes) => {
+    // The iOS/Android native startBlocking can now reject (e.g. "no_selection"
+    // when no apps are picked). Catch it here so callers never get an unhandled
+    // rejection, and so we only mark blocking active when it actually started.
     if (Platform.OS === 'ios' && Native) {
-      await Native.startBlocking(startMinutes, endMinutes);
+      try {
+        await Native.startBlocking(startMinutes, endMinutes);
+      } catch (e) {
+        if (e?.code === 'no_selection') {
+          Alert.alert('Pick apps first', 'Choose which apps to block before starting a focus session.');
+        }
+        return false;
+      }
     } else if (Platform.OS === 'android' && Native && blockedPackages.length > 0) {
-      await Native.startBlocking(blockedPackages);
+      try {
+        await Native.startBlocking(blockedPackages);
+      } catch (_) {
+        return false;
+      }
     } else if (!Native) {
       Alert.alert('Native Build Required', 'Real blocking requires a native build.');
     }
     setIsBlocking(true);
     await AsyncStorage.setItem('@nova_is_blocking', 'true');
+    return true;
   }, [blockedPackages]);
 
   const stopBlocking = useCallback(async () => {

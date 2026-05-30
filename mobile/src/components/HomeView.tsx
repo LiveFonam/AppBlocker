@@ -155,14 +155,18 @@ export function HomeView({
           ? 'Last 4 Weeks'
           : 'Last 12 Weeks'
 
-  const onScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-    useNativeDriver: false,
-    listener: (e: { nativeEvent: { contentOffset: { y: number } } }) => {
-      if (!scrollIntroDone && e.nativeEvent.contentOffset.y > 72) {
-        onScrollPastIntro()
-      }
-    },
-  })
+  const onScroll = useMemo(
+    () =>
+      Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        useNativeDriver: false,
+        listener: (e: { nativeEvent: { contentOffset: { y: number } } }) => {
+          if (!scrollIntroDone && e.nativeEvent.contentOffset.y > 72) {
+            onScrollPastIntro()
+          }
+        },
+      }),
+    [scrollIntroDone, onScrollPastIntro, scrollY],
+  )
 
   const lowerRevealOpacity = scrollY.interpolate({
     inputRange: [0, 100],

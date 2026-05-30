@@ -35,10 +35,17 @@ class AppBlockerModule: NSObject {
 
   // MARK: - App Picker
 
-  @objc func showAppPicker() {
-    guard #available(iOS 16.0, *) else { return }
+  @objc func showAppPicker(_ resolve: @escaping (Any?) -> Void,
+                           reject: @escaping (String?, String?, Error?) -> Void) {
+    guard #available(iOS 16.0, *) else {
+      reject("unsupported", "FamilyControls requires iOS 16+", nil)
+      return
+    }
     DispatchQueue.main.async { [weak self] in
-      guard let self = self else { return }
+      guard let self = self else {
+        reject("deallocated", "AppBlockerModule was deallocated", nil)
+        return
+      }
       let selection = self.loadSelection() ?? FamilyActivitySelection()
       let picker = AppPickerHost(initial: selection) { [weak self] newSelection in
         self?.saveSelection(newSelection)
@@ -46,8 +53,13 @@ class AppBlockerModule: NSObject {
       let hostingController = UIHostingController(rootView: picker)
       hostingController.modalPresentationStyle = .pageSheet
 
-      if let root = self.topViewController() {
-        root.present(hostingController, animated: true)
+      guard let root = self.topViewController() else {
+        print("[AppBlocker] showAppPicker: no presenter available")
+        reject("no_presenter", "No view controller available to present the app picker", nil)
+        return
+      }
+      root.present(hostingController, animated: true) {
+        resolve(true)
       }
     }
   }
@@ -66,11 +78,21 @@ class AppBlockerModule: NSObject {
   // MARK: - Blocking
 
   /// Start blocking. `startMinutes`/`endMinutes` are interpreted as a duration:
-  /// the block runs from "now" for `max(1, endMinutes - startMinutes)` minutes.
-  /// (For absolute-time scheduling we'd need a different bridge signature; v1.1 polish.)
-  @objc func startBlocking(_ startMinutes: Double, endMinutes: Double) {
-    guard #available(iOS 16.0, *) else { return }
-    guard let selection = loadSelection() else { return }
+  /// the block runs from "now" for `max(15, endMinutes - startMinutes)` minutes.
+  /// Rejects with "no_selection" when no app selection has been picked (or it
+  /// fails to decode) so JS can prompt the user to re-pick apps.
+  @objc func startBlocking(_ startMinutes: Double,
+                           endMinutes: Double,
+                           resolve: @escaping (Any?) -> Void,
+                           reject: @escaping (String?, String?, Error?) -> Void) {
+    guard #available(iOS 16.0, *) else {
+      reject("unsupported", "FamilyControls requires iOS 16+", nil)
+      return
+    }
+    guard let selection = loadSelection() else {
+      reject("no_selection", "No app selection found. Pick apps to block first.", nil)
+      return
+    }
 
     // Apply shield immediately so blocking is in effect even before the extension fires.
     store.shield.applications = selection.applicationTokens.isEmpty ? nil : selection.applicationTokens
@@ -80,12 +102,22 @@ class AppBlockerModule: NSObject {
     // Schedule the interval end via DeviceActivity so the extension's
     // intervalDidEnd() fires and clears the shield even when the main app
     // is force-killed.
-    let durationMinutes = max(1, Int(endMinutes - startMinutes))
+    //
+    // DeviceActivity does not reliably deliver intervalDidEnd() for windows
+    // shorter than 15 minutes, so enforce a 15-minute floor. The foreground
+    // isBlocking() expiry re-clear remains as a fallback regardless.
+    let durationMinutes = max(15, Int(endMinutes - startMinutes))
     let now = Date()
     let endDate = Calendar.current.date(byAdding: .minute, value: durationMinutes, to: now) ?? now
     let cal = Calendar.current
-    let startComponents = cal.dateComponents([.hour, .minute, .second], from: now)
-    let endComponents   = cal.dateComponents([.hour, .minute, .second], from: endDate)
+
+    // Build the schedule from absolute date components (including year/month/day)
+    // so DeviceActivity models the real now+duration window instead of a
+    // recurring daily time-of-day window. This keeps midnight-crossing and
+    // multi-day sessions correct because each bound carries its own date.
+    let dateFields: Set<Calendar.Component> = [.year, .month, .day, .hour, .minute, .second]
+    let startComponents = cal.dateComponents(dateFields, from: now)
+    let endComponents   = cal.dateComponents(dateFields, from: endDate)
 
     let schedule = DeviceActivitySchedule(
       intervalStart: startComponents,
@@ -98,10 +130,13 @@ class AppBlockerModule: NSObject {
       try center.startMonitoring(Self.activityName, during: schedule)
     } catch {
       print("[AppBlocker] startMonitoring failed: \(error.localizedDescription)")
+      // Shield is already applied and the foreground expiry fallback is armed,
+      // so report success rather than leaving JS thinking blocking failed.
     }
 
     suite.set(true, forKey: "isBlocking")
     suite.set(endDate.timeIntervalSince1970, forKey: "blockingEndAt")
+    resolve(true)
   }
 
   @objc func stopBlocking() {

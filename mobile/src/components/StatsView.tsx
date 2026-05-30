@@ -194,8 +194,7 @@ export function StatsView({ data, onOpenSettings, bottomInset }: Props) {
         <View style={styles.rowBetween}>
           <Text style={styles.sectionLabel}>Focus trend</Text>
           <Text style={styles.trendPct}>
-            {trendPct >= 0 ? '+' : ''}
-            {trendPct}%
+            {trendPct === null ? '-' : `${trendPct >= 0 ? '+' : ''}${trendPct}%`}
           </Text>
         </View>
         <View style={styles.trendChartWrap}>

@@ -1,7 +1,7 @@
 import Slider from '@react-native-community/slider'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   KeyboardAvoidingView,
   Modal,
@@ -108,6 +108,15 @@ export function BlockView({
   const [gateVisible, setGateVisible] = useState(false)
   const pendingActionRef = useRef<null | (() => void)>(null)
   const restoreModalRef = useRef<null | 'catalog' | 'manage'>(null)
+  const gateTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  useEffect(
+    () => () => {
+      gateTimersRef.current.forEach((id) => clearTimeout(id))
+      gateTimersRef.current = []
+    },
+    [],
+  )
 
   const [editingTarget, setEditingTarget] = useState<BlockTarget | null>(null)
   const [draftDaily, setDraftDaily] = useState(30)
@@ -129,11 +138,11 @@ export function BlockView({
     if (manageOpen) {
       restoreModalRef.current = 'manage'
       setManageOpen(false)
-      setTimeout(() => setGateVisible(true), 280)
+      gateTimersRef.current.push(setTimeout(() => setGateVisible(true), 280))
     } else if (catalogOpen) {
       restoreModalRef.current = 'catalog'
       setCatalogOpen(false)
-      setTimeout(() => setGateVisible(true), 280)
+      gateTimersRef.current.push(setTimeout(() => setGateVisible(true), 280))
     } else {
       restoreModalRef.current = null
       setGateVisible(true)
@@ -179,10 +188,12 @@ export function BlockView({
     const restore = restoreModalRef.current
     restoreModalRef.current = null
     if (restore) {
-      setTimeout(() => {
-        if (restore === 'manage') setManageOpen(true)
-        else if (restore === 'catalog') setCatalogOpen(true)
-      }, 280)
+      gateTimersRef.current.push(
+        setTimeout(() => {
+          if (restore === 'manage') setManageOpen(true)
+          else if (restore === 'catalog') setCatalogOpen(true)
+        }, 280),
+      )
     }
   }
 
@@ -339,7 +350,7 @@ export function BlockView({
                   <Text style={styles.openRowSub}>
                     {iosSelectedCount && iosSelectedCount > 0
                       ? `${iosSelectedCount} ${iosSelectedCount === 1 ? 'app' : 'apps'} selected for real blocking`
-                      : 'Required for real blocking — opens iOS picker'}
+                      : 'Required for real blocking, opens iOS picker'}
                   </Text>
                 </View>
               </View>

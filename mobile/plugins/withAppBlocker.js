@@ -1,5 +1,5 @@
 /**
- * Expo Config Plugin — automatically wires up the AppBlocker native modules
+ * Expo Config Plugin: automatically wires up the AppBlocker native modules
  * during `expo prebuild` (run by EAS Build on the cloud Mac/Linux server).
  *
  * What it does:
@@ -115,6 +115,37 @@ function withAndroidManifestChanges(config) {
   });
 }
 
+function withLauncherQueries(config) {
+  return withAndroidManifest(config, (modConfig) => {
+    const manifest = modConfig.modResults.manifest;
+    if (!manifest.queries) manifest.queries = [];
+
+    // Android 11+ package visibility: declare that we query for apps that
+    // expose a LAUNCHER activity, so queryIntentActivities can enumerate
+    // launchable apps without QUERY_ALL_PACKAGES.
+    const alreadyDeclared = manifest.queries.some((q) =>
+      (q.intent || []).some((intent) =>
+        (intent.action || []).some(
+          (a) => a.$['android:name'] === 'android.intent.action.MAIN'
+        )
+      )
+    );
+
+    if (!alreadyDeclared) {
+      manifest.queries.push({
+        intent: [
+          {
+            action: [{ $: { 'android:name': 'android.intent.action.MAIN' } }],
+            category: [{ $: { 'android:name': 'android.intent.category.LAUNCHER' } }],
+          },
+        ],
+      });
+    }
+
+    return modConfig;
+  });
+}
+
 function withAccessibilityServiceStrings(config) {
   return withStringsXml(config, (modConfig) => {
     modConfig.modResults = AndroidConfig.Strings.setStringItem(
@@ -152,6 +183,7 @@ module.exports = (config) => {
   config = withIosModule(config);
   config = withAndroidKotlinFiles(config);
   config = withAccessibilityServiceStrings(config);
+  config = withLauncherQueries(config);
   config = withAndroidManifestChanges(config);
   config = withAndroidPackageRegistration(config);
   return config;

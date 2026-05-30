@@ -13,6 +13,7 @@ import Shell from './Shell';
 import { useAppBlocker } from './src/useAppBlocker';
 import { supabase } from './src/supabase';
 import { savePersisted, defaultWorkSchedule, seedScreenTimeFromReport } from './src/storage';
+import { DEFAULT_DAILY_LIMIT_MIN, DEFAULT_SESSION_LIMIT_MIN } from './src/types';
 
 const APP_NAME_BY_ID = {
   tiktok: 'TikTok',
@@ -28,11 +29,16 @@ const APP_NAME_BY_ID = {
 };
 
 function bridgeOnboardingToPersisted(config) {
-  const reported = 180;
+  const reported = Math.max(30, Math.min(960, config.actualMins ?? 180));
   const targets = (config.selectedApps || []).map((id) => ({
     id,
     name: APP_NAME_BY_ID[id] || id,
     enabled: true,
+    dailyLimitMinutes:
+      config.perAppConfig?.[id]?.dailyLimitMins ??
+      config.dailyLimitMins ??
+      DEFAULT_DAILY_LIMIT_MIN,
+    sessionLimitMinutes: DEFAULT_SESSION_LIMIT_MIN,
   }));
   return {
     profile: {
@@ -304,7 +310,8 @@ function BlockedScreenModal({ visible, blockTitle, endMins, appId = 'unknown', o
     (async () => {
       const raw = await AsyncStorage.getItem('@nova_emergency_today');
       const today = new Date().toDateString();
-      const data = raw ? JSON.parse(raw) : null;
+      let data = null;
+      try { data = raw ? JSON.parse(raw) : null; } catch (_) { data = null; }
 
       if (!data || data.date !== today) {
         setAlreadyUsed(false);
@@ -333,7 +340,8 @@ function BlockedScreenModal({ visible, blockTitle, endMins, appId = 'unknown', o
 
         const today = new Date().toDateString();
         const raw = await AsyncStorage.getItem('@nova_emergency_today');
-        const data = raw ? JSON.parse(raw) : null;
+        let data = null;
+        try { data = raw ? JSON.parse(raw) : null; } catch (_) { data = null; }
         const prev = data && data.date === today ? data : { date: today, firstAppId: null, usedApps: [] };
         await AsyncStorage.setItem('@nova_emergency_today', JSON.stringify({
           date: today,
@@ -852,7 +860,6 @@ function App() {
         return;
       }
 
-      await supabase.auth.getSession();
       let hydrated = false;
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -896,8 +903,14 @@ function App() {
         }
       } catch (_) {}
 
-      const v = await AsyncStorage.getItem('@nova_onboarding_done');
-      setOnboardingDone(v === 'true');
+      // Always resolve onboardingDone out of null, even if storage/Supabase throws.
+      // Leaving it null renders the splash forever (an unrecoverable boot hang).
+      let done = false;
+      try {
+        const v = await AsyncStorage.getItem('@nova_onboarding_done');
+        done = v === 'true';
+      } catch (_) {}
+      setOnboardingDone(done);
     })();
   }, []);
 
@@ -934,7 +947,10 @@ function App() {
   };
 
   const doSave = async () => {
-    await blocker.startBlocking(appState.startMinutes, appState.endMinutes);
+    // startBlocking returns false (and shows its own "pick apps first" alert) when
+    // the native side could not start; we still persist the block config, but skip
+    // the contradictory "Block saved" toast in that case.
+    const started = await blocker.startBlocking(appState.startMinutes, appState.endMinutes);
     await AsyncStorage.setItem('@nova_app_state', JSON.stringify({
       blockTitle:   appState.blockTitle,
       startMinutes: appState.startMinutes,
@@ -942,7 +958,7 @@ function App() {
       repeatRule:   appState.repeatRule,
     }));
     setShowEditor(false);
-    showToast('Block saved');
+    if (started !== false) showToast('Block saved');
   };
 
   const handleSave = async () => {
