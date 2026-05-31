@@ -860,7 +860,21 @@ function App() {
         return;
       }
 
-      let hydrated = false;
+      // Resolve the splash from the FAST local flag first so the first paint never
+      // waits on the network. The Supabase session/profile hydration below then runs
+      // in the background; previously it ran BEFORE setOnboardingDone, so 3 serial
+      // network round-trips (getSession + profiles + block_settings) held the
+      // "STUDENT FOCUS" splash up for many seconds on slow/flaky connections.
+      let localDone = false;
+      try {
+        const v = await AsyncStorage.getItem('@nova_onboarding_done');
+        localDone = v === 'true';
+      } catch (_) {}
+      setOnboardingDone(localDone);
+
+      // Background hydration from Supabase. Does NOT gate the splash. Only promotes
+      // onboardingDone if the server knows the user is onboarded but the local flag
+      // was missing (e.g. signed in on a device whose local storage was cleared).
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
@@ -898,19 +912,10 @@ function App() {
               ops.push(['@nova_per_app_config', JSON.stringify(perAppConfig)]);
             }
             await AsyncStorage.multiSet(ops);
-            hydrated = true;
+            if (!localDone) setOnboardingDone(true);
           }
         }
       } catch (_) {}
-
-      // Always resolve onboardingDone out of null, even if storage/Supabase throws.
-      // Leaving it null renders the splash forever (an unrecoverable boot hang).
-      let done = false;
-      try {
-        const v = await AsyncStorage.getItem('@nova_onboarding_done');
-        done = v === 'true';
-      } catch (_) {}
-      setOnboardingDone(done);
     })();
   }, []);
 
