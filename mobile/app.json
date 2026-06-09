@@ -45,7 +45,8 @@
       },
       "permissions": [
         "android.permission.PACKAGE_USAGE_STATS",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.BIND_ACCESSIBILITY_SERVICE"
       ]
     },
     "updates": {

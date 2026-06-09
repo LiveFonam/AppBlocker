@@ -20,24 +20,9 @@ import { getOutgoingSecret, verifyFriendCode } from '../utils/friendControl'
 let Haptics: any = null
 try { Haptics = require('expo-haptics') } catch (_) {}
 
-// AdMob: fully removed for the v1.0 launch (ships without ads).
-// The `react-native-google-mobile-ads` package is NOT installed: keeping it as a
-// dependency while the config plugin is absent makes the native SDK crash at
-// launch (missing GADApplicationIdentifier in Info.plist). All the ad-loading
-// machinery below stays intact but no-ops while AdMob is null. To re-enable ads,
-// reinstall the package, re-add its config plugin to app.json, and restore the
-// `require(...)` below, see ADMOB_SETUP_LATER.md.
-const ADS_ENABLED = false
-
-let AdMob: any = null
-// if (ADS_ENABLED) {
-//   try { AdMob = require('react-native-google-mobile-ads') } catch (_) {}
-// }
-
-const REWARDED_AD_UNIT_ID = AdMob?.TestIds?.REWARDED || 'ca-app-pub-3940256099942544/1712485313'
-
+// v1.0 ships without ads; see design doc for re-enable steps.
 const HOLD_SECONDS = 10
-const ADS_SECONDS = 4 * 60
+const WAIT_SECONDS = 4 * 60
 const GRACE_WINDOW_MS = 45 * 60 * 1000
 export const OVERRIDE_GRACE_KEY = '@nova_override_grace_until'
 
@@ -80,7 +65,7 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
   const [method, setMethod] = useState<'self' | 'friend' | null>(null)
   const [stage, setStage] = useState<Stage>('hold')
   const [holdProgress, setHoldProgress] = useState(0)
-  const [adsRemaining, setAdsRemaining] = useState(ADS_SECONDS)
+  const [adsRemaining, setAdsRemaining] = useState(WAIT_SECONDS)
   const [friendCode, setFriendCode] = useState('')
   const [friendErr, setFriendErr] = useState('')
   const holdTimerRef = useRef<any>(null)
@@ -89,13 +74,6 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
   const adsHapticMinuteRef = useRef(0)
   const iosVibIntervalRef = useRef<any>(null)
   const lastHapticAtRef = useRef<number>(0)
-  // Ads
-  const rewardedRef = useRef<any>(null)
-  const adUnsubsRef = useRef<Array<() => void>>([])
-  const adTimeoutsRef = useRef<Array<any>>([])
-  const isShowingAdRef = useRef(false)
-  const adLoadedRef = useRef(false)
-  const [adStatus, setAdStatus] = useState<'idle' | 'loading' | 'ready' | 'playing' | 'failed'>('idle')
 
   // Tracks whether the gate is mounted + visible so async callbacks (grace
   // grant, lockout ticks) don't fire onSuccess / setState after teardown.
@@ -120,7 +98,7 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
       setMethod(resolved)
       setStage(resolved === 'friend' ? 'friend' : 'hold')
       setHoldProgress(0)
-      setAdsRemaining(ADS_SECONDS)
+      setAdsRemaining(WAIT_SECONDS)
       setFriendCode('')
       setFriendErr('')
       // Re-sync any persisted friend-code lockout so a reopened modal still
@@ -128,64 +106,6 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
       await syncLockout()
     })()
   }, [visible])
-
-  const teardownAd = () => {
-    adUnsubsRef.current.forEach((u) => { try { u() } catch (_) {} })
-    adUnsubsRef.current = []
-    // Clear any pending ad-lifecycle timers (CLOSED/ERROR follow-ups) so they
-    // don't fire after teardown or leak across an ad re-enable (N2).
-    adTimeoutsRef.current.forEach((id) => { try { clearTimeout(id) } catch (_) {} })
-    adTimeoutsRef.current = []
-    rewardedRef.current = null
-    adLoadedRef.current = false
-    isShowingAdRef.current = false
-  }
-
-  const loadNextAd = () => {
-    if (!AdMob || !AdMob.RewardedAd) { setAdStatus('failed'); return }
-    teardownAd()
-    setAdStatus('loading')
-    const ad = AdMob.RewardedAd.createForAdRequest(REWARDED_AD_UNIT_ID, {
-      requestNonPersonalizedAdsOnly: true,
-    })
-    rewardedRef.current = ad
-    const unsubLoaded = ad.addAdEventListener(AdMob.RewardedAdEventType.LOADED, () => {
-      adLoadedRef.current = true
-      setAdStatus('ready')
-      // Auto-show if we're still in the ads stage and not already showing
-      if (adsTimerRef.current && !isShowingAdRef.current) {
-        try {
-          isShowingAdRef.current = true
-          setAdStatus('playing')
-          ad.show()
-        } catch (_) {
-          isShowingAdRef.current = false
-          setAdStatus('failed')
-        }
-      }
-    })
-    const unsubClosed = ad.addAdEventListener(AdMob.AdEventType.CLOSED, () => {
-      // Hold the "isShowingAdRef" true a brief moment to absorb the AppState
-      // 'inactive'/'background' events AdMob fires when dismissing its UI.
-      adTimeoutsRef.current.push(setTimeout(() => { isShowingAdRef.current = false }, 1200))
-      // Queue next ad if timer still running
-      if (adsTimerRef.current) {
-        adTimeoutsRef.current.push(setTimeout(() => { if (adsTimerRef.current) loadNextAd() }, 250))
-      }
-    })
-    const unsubError = ad.addAdEventListener(AdMob.AdEventType.ERROR, () => {
-      isShowingAdRef.current = false
-      setAdStatus('failed')
-      // Retry after 5s as long as the timer is still running
-      adTimeoutsRef.current.push(setTimeout(() => { if (adsTimerRef.current) loadNextAd() }, 5000))
-    })
-    adUnsubsRef.current = [unsubLoaded, unsubClosed, unsubError]
-    try {
-      ad.load()
-    } catch (_) {
-      setAdStatus('failed')
-    }
-  }
 
   const cancelAll = () => {
     holdingRef.current = false
@@ -197,24 +117,19 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
       clearInterval(adsTimerRef.current)
       adsTimerRef.current = null
     }
-    teardownAd()
-    setAdStatus('idle')
     if (iosVibIntervalRef.current) {
       clearInterval(iosVibIntervalRef.current)
       iosVibIntervalRef.current = null
     }
     Vibration.cancel()
     setHoldProgress(0)
-    setAdsRemaining(ADS_SECONDS)
+    setAdsRemaining(WAIT_SECONDS)
   }
 
   useEffect(() => {
     if (!visible) return
     const sub = AppState.addEventListener('change', (s) => {
       if (s !== 'active') {
-        // Don't cancel if we're inside a fullscreen rewarded ad. AdMob fires
-        // 'inactive'/'background' on the host app while showing its UI.
-        if (isShowingAdRef.current) return
         cancelAll()
         if (stage === 'ads' || stage === 'hold') {
           setStage(method === 'friend' ? 'friend' : 'hold')
@@ -314,13 +229,13 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
 
   const beginAds = () => {
     setStage('ads')
-    setAdsRemaining(ADS_SECONDS)
+    setAdsRemaining(WAIT_SECONDS)
     adsHapticMinuteRef.current = 0
     if (adsTimerRef.current) clearInterval(adsTimerRef.current)
     const startedAt = Date.now()
     adsTimerRef.current = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startedAt) / 1000)
-      const remaining = Math.max(0, ADS_SECONDS - elapsed)
+      const remaining = Math.max(0, WAIT_SECONDS - elapsed)
       setAdsRemaining(remaining)
       const minute = Math.floor(elapsed / 60)
       if (minute > adsHapticMinuteRef.current) {
@@ -330,15 +245,12 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
       if (remaining <= 0) {
         clearInterval(adsTimerRef.current)
         adsTimerRef.current = null
-        teardownAd()
         // Grace is always granted (the timer completed), but only call back
         // into the parent if we're still mounted/visible so we don't trigger a
         // navigation/setState on an unmounted gate (L10).
         grantOverrideGrace().finally(() => { if (mountedRef.current) onSuccess() })
       }
     }, 250)
-    // Kick off the first rewarded ad. Subsequent ads chain via the CLOSED handler.
-    loadNextAd()
   }
 
   // Reads the persisted lockout-until and starts/keeps a 1s countdown ticking so
@@ -456,7 +368,7 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
             <>
               <Text style={styles.title}>Prove you mean it.</Text>
               <Text style={styles.sub}>
-                Hold the button below for {HOLD_SECONDS} seconds, then sit through {Math.round(ADS_SECONDS / 60)} minutes of ads.
+                Hold the button below for {HOLD_SECONDS} seconds, then wait out a {Math.round(WAIT_SECONDS / 60)} minute timer.
                 Leaving the app cancels the whole thing.
               </Text>
               <Pressable
@@ -466,7 +378,7 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
               >
                 <View style={[styles.holdFill, { width: `${Math.round(holdProgress * 100)}%` }]} />
                 <Text style={styles.holdLabel}>
-                  {holdProgress >= 1 ? 'Starting ads...' : 'Hold to override'}
+                  {holdProgress >= 1 ? 'Starting timer...' : 'Hold to override'}
                 </Text>
               </Pressable>
               <Pressable onPress={() => { cancelAll(); onCancel() }} style={styles.cancelBtn}>
@@ -477,17 +389,11 @@ export function OverrideGate({ visible, onSuccess, onCancel }: Props) {
 
           {stage === 'ads' && (
             <>
-              <Text style={styles.title}>Watching ads</Text>
+              <Text style={styles.title}>Waiting period</Text>
               <Text style={styles.sub}>If you leave the app the timer resets and you start over.</Text>
               <View style={styles.adPanel}>
-                <Text style={styles.adPlaceholder}>AD</Text>
-                <Text style={styles.adPlaceholderHint}>
-                  {adStatus === 'loading' ? 'Loading…' :
-                   adStatus === 'ready'   ? 'Ad ready' :
-                   adStatus === 'playing' ? 'Ad playing' :
-                   adStatus === 'failed'  ? 'No ad available, keep waiting' :
-                   'Preparing…'}
-                </Text>
+                <Text style={styles.adPlaceholder}>WAIT</Text>
+                <Text style={styles.adPlaceholderHint}>Please keep waiting</Text>
               </View>
               <Text style={styles.timer}>{String(minutes).padStart(2, '0')}:{String(secs).padStart(2, '0')}</Text>
               <Pressable onPress={() => { cancelAll(); onCancel() }} style={styles.cancelBtn}>

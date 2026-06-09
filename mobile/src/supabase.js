@@ -1,8 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 
-const supabaseUrl     = 'https://mmxlaboadcwlbwnshmxc.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1teGxhYm9hZGN3bGJ3bnNobXhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyOTA2NjYsImV4cCI6MjA5Mzg2NjY2Nn0.XbfJog8Mq5ku-FRCd0Dadi62eGY2vXSz7mBcG24BWRQ';
+// Read from EXPO_PUBLIC_* env vars so the actual values live in `.env`
+// (gitignored) and are inlined into the bundle at build time by Metro.
+// The "anon" Supabase key is designed to be public: it is the same key that
+// ships in every client, and Supabase security depends on Row Level Security,
+// not on hiding the key. The only key that must NEVER be committed is the
+// `service_role` key (kept only in the EAS Submit / Supabase dashboard).
+const supabaseUrl     = process.env.EXPO_PUBLIC_SUPABASE_URL     || '';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
 const ExpoSecureStoreAdapter = {
   getItem:    (key) => SecureStore.getItemAsync(key),

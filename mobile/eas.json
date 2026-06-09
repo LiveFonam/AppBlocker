@@ -17,6 +17,13 @@
     },
     "production": {
       "autoIncrement": true
+    },
+    "review": {
+      "extends": "production",
+      "env": {
+        "REVIEW_EMAIL": "appreview@mcgill.ca",
+        "REVIEW_CODE": "424242"
+      }
     }
   },
   "submit": {

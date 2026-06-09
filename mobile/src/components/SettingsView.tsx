@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useEffect, useState } from 'react'
 import {
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +20,7 @@ import {
   openFocusModesHelp,
   openScreenTimeSettings,
 } from '../utils/iosSystem'
+import { wipeSecureStore } from '../utils/secureStore'
 import { FriendControlPanel } from './FriendControlPanel'
 
 type Props = {
@@ -150,6 +152,19 @@ export function SettingsView({
         </Pressable>
       </View>
 
+      <View style={[styles.card, styles.minCard]}>
+        <Text style={styles.label}>Need help?</Text>
+        <Text style={[styles.body, { marginBottom: 12 }]}>
+          Email us and we will get back to you.
+        </Text>
+        <Pressable
+          onPress={() => Linking.openURL('mailto:livefonam@gmail.com')}
+          style={styles.supportBtn}
+        >
+          <Text style={styles.supportLabel}>Contact support</Text>
+        </Pressable>
+      </View>
+
       <View style={[styles.card, styles.minCard, styles.dangerCard]}>
         <Text style={[styles.label, { color: '#ff453a' }]}>Danger zone</Text>
         <Text style={[styles.body, { marginBottom: 20 }]}>
@@ -187,6 +202,7 @@ export function SettingsView({
                               }
                               try { await supabase.auth.signOut() } catch (_) {}
                               try { await AsyncStorage.clear() } catch (_) {}
+                              try { await wipeSecureStore() } catch (_) {}
                               Alert.alert(
                                 'Account deleted',
                                 'Your account and all server data are gone. The app will restart.',
@@ -346,5 +362,18 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     color: '#ff453a',
     textTransform: 'uppercase',
+  },
+  supportBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.outline,
+    alignItems: 'center',
+  },
+  supportLabel: {
+    ...fonts.semibold,
+    fontSize: 14,
+    color: colors.text,
   },
 })

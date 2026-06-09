@@ -14,6 +14,7 @@ import { useAppBlocker } from './src/useAppBlocker';
 import { supabase } from './src/supabase';
 import { savePersisted, defaultWorkSchedule, seedScreenTimeFromReport } from './src/storage';
 import { DEFAULT_DAILY_LIMIT_MIN, DEFAULT_SESSION_LIMIT_MIN } from './src/types';
+import { pinStore } from './src/utils/secureStore';
 
 const APP_NAME_BY_ID = {
   tiktok: 'TikTok',
@@ -201,7 +202,7 @@ function PinModal({ visible, onSuccess, onCancel }) {
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
   const verify = async () => {
-    const stored = await AsyncStorage.getItem('@nova_pin');
+    const stored = await pinStore.get('@nova_pin');
     if (!stored || pin === stored) {
       setPin('');
       onSuccess();
@@ -409,7 +410,7 @@ function BlockedScreenModal({ visible, blockTitle, endMins, appId = 'unknown', o
 
 function SettingsSheet({ visible, onClose, blocker, blockTitle, endMins, onPreviewBlock }) {
   const [email, setEmail] = useState('');
-  useEffect(() => { AsyncStorage.getItem('@nova_pin').then(p => p && setEmail('')); }, [visible]);
+  useEffect(() => { pinStore.get('@nova_pin').then(p => p && setEmail('')); }, [visible]);
   useEffect(() => { AsyncStorage.getItem('@nova_email').then(e => e && setEmail(e)); }, [visible]);
 
   const handleUnlockAll = () => {
@@ -422,7 +423,7 @@ function SettingsSheet({ visible, onClose, blocker, blockTitle, endMins, onPrevi
           style: 'destructive',
           onPress: async () => {
             await blocker.stopBlocking();
-            await AsyncStorage.removeItem('@nova_pin');
+            await pinStore.remove('@nova_pin');
             onClose();
           },
         },
@@ -447,7 +448,7 @@ function SettingsSheet({ visible, onClose, blocker, blockTitle, endMins, onPrevi
       'Reset Accountability Code',
       'This removes the PIN. Anyone will be able to change your block settings. Are you sure?',
       [
-        { text: 'Remove PIN', style: 'destructive', onPress: () => AsyncStorage.removeItem('@nova_pin') },
+        { text: 'Remove PIN', style: 'destructive', onPress: () => pinStore.remove('@nova_pin') },
         { text: 'Cancel', style: 'cancel' },
       ]
     );
@@ -993,7 +994,7 @@ function App() {
   const onLockExpired = async () => {
     setShowTimeLock(false);
     await AsyncStorage.removeItem('@nova_lock_until');
-    const pin = await AsyncStorage.getItem('@nova_pin');
+    const pin = await pinStore.get('@nova_pin');
     if (pin) {
       setShowPinModal(true);
     } else {

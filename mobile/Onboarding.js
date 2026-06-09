@@ -276,7 +276,15 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
     }, 1000);
   };
 
+  // App Review demo account: lets the Apple reviewer sign in without an email inbox.
+  // For this one address we skip sending and verifying the OTP. Real users are unaffected.
+  // The credentials come from process.env (EAS env vars per profile). In a production
+  // build the env vars are undefined, so the constants are empty strings and the bypass
+  // branches are dead code (Metro replaces `process.env.REVIEW_EMAIL` at bundle time).
+  const REVIEW_EMAIL = (process.env.REVIEW_EMAIL || '').toLowerCase();
+  const REVIEW_CODE  = process.env.REVIEW_CODE || '';
   const validateEmail = async () => {
+    if (REVIEW_EMAIL && email.trim().toLowerCase() === REVIEW_EMAIL) { setEmailErr(''); next(); return; }
     const domain = (email.split('@')[1] || '').toLowerCase();
     if (!domain) { setEmailErr('Enter your school email address'); return; }
     setOtpSending(true);
@@ -305,6 +313,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
   };
 
   const verifyOtp = async () => {
+    if (REVIEW_EMAIL && REVIEW_CODE && email.trim().toLowerCase() === REVIEW_EMAIL && otpCode === REVIEW_CODE) { setOtpErr(''); next(); return; }
     const { error } = await supabase.auth.verifyOtp({
       email, token: otpCode, type: 'email',
     });
@@ -452,14 +461,14 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
           By continuing, you agree to our{' '}
           <Text
             style={{ color: O.white, textDecorationLine: 'underline' }}
-            onPress={() => Linking.openURL('https://livefonam.github.io/AppBlocker/terms')}
+            onPress={() => Linking.openURL('https://studentfocusapp.com/terms.html')}
           >
             Terms of Service
           </Text>
           {' '}and{' '}
           <Text
             style={{ color: O.white, textDecorationLine: 'underline' }}
-            onPress={() => Linking.openURL('https://livefonam.github.io/AppBlocker/privacy')}
+            onPress={() => Linking.openURL('https://studentfocusapp.com/privacy.html')}
           >
             Privacy Policy
           </Text>
@@ -978,7 +987,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
       </TouchableOpacity>
       <TouchableOpacity style={[st.modeCard, blockingMode === 'taper' && st.modeCardOn, { marginTop: 16 }]} onPress={() => setBlockingMode('taper')}>
         <Text style={[st.modeTitle, blockingMode === 'taper' && { color: O.white }]}>Taper Off</Text>
-        <Text style={st.modeSub}>We gradually reduce your allowed daily usage each week until you hit your target.</Text>
+        <Text style={st.modeSub}>We hold your daily limit steady and trust you to lower it yourself over time.</Text>
       </TouchableOpacity>
     </View>,
 
@@ -1003,7 +1012,7 @@ export default function Onboarding({ onComplete, requestAuth, getUsageStats }) {
         onPress={() => setOverrideMethod('self')}
       >
         <Text style={[st.modeTitle, overrideMethod === 'self' && { color: O.white }]}>Self Control</Text>
-        <Text style={st.modeSub}>Hold a button for 10 seconds, then sit through 4 minutes of ads before you can override. Leaving the app cancels it.</Text>
+        <Text style={st.modeSub}>Hold a button for 10 seconds, then wait out a 4 minute timer before you can override. Leaving the app cancels it.</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[st.btn, { marginTop: 28, opacity: overrideMethod ? 1 : 0.4 }]}
